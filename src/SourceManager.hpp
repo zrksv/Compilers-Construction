@@ -10,9 +10,7 @@ private:
     size_t cursor = 0;
 
 public:
-    explicit SourceManager(const std::string& text) {
-        source =text;
-    };
+    explicit SourceManager(const std::string& text) : source(text) {}
     char peek() const;
     char peek_next() const;
     char get();
