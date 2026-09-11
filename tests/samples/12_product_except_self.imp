@@ -1,0 +1,31 @@
+routine product_except_self(arr : array [] integer, ans : array [] integer) is
+	var n is arr.size();
+	var left is 1;
+	
+	ans[n] := 1;
+	
+	for i in 1..n-1 reverse loop
+		ans[i] := ans[i+1] * arr[i+1];
+	end
+	
+	
+	for i in 1..n loop
+		ans[i] := left * ans[i];
+		left := left * arr[i];
+	end
+end
+
+routine main() is
+	var nums : array [5] integer 
+	var res : array [5] integer
+	
+	for i in 1 .. 5 loop 
+		nums[i] := i * 10;
+	end
+	
+	product_except_self(nums, res);
+	
+	for i in 1..res.size() loop
+		print res[i];
+	end
+end

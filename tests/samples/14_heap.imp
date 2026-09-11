@@ -1,0 +1,45 @@
+type node_id is integer;
+
+type heap_node is record
+	var id : node_id;
+	var weight : real;
+end
+
+routine sift_up(nodes : array [] heap_node, index : integer) is
+	var current is index;
+	var parent is current / 2;
+	
+	while current > 1 loop
+		if nodes[current].weight < nodes[parent].weight then
+			var temp_id is nodes[current].id;
+			var temp_weight is nodes[current].weight;
+			
+			nodes[current].id := nodes[parent].id;
+			nodes[current].weight := nodes[parent].weight;
+			
+			nodes[parent].id := temp_id;
+			nodes[parent].weight := temp_weight;
+			
+			current := parent;
+			parent := current / 2;
+		else
+			current := 1;
+		end
+	end
+end
+
+routine main() is
+	var heap : array [3] heap_node;
+	
+	heap[1].id := 101;
+	heap[1].weight := 5.5;
+	
+	heap[2].id := 102;
+	heap[2].weight := 1.2;
+	
+	sift_up(heap, 2);
+	print heap[1].id;
+	print heap[1].weight;
+	print heap[2].id;
+	print heap[2].weight;
+end

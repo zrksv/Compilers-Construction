@@ -1,0 +1,38 @@
+routine binsearch(arr : array [] integer, target : integer) : integer is
+	var left is 1;
+	var right is arr.size();
+
+	while left <= right loop
+		var mid is left + (right - left) / 2;
+		
+		if target < arr[mid] then
+			right := mid - 1;
+		else 
+			if target > arr[mid] then
+				left := mid + 1;
+			else
+				return mid;
+			end
+		end
+	end
+	
+	return -1;
+end
+
+routine main() is
+	var nums : array [7] integer;
+	
+	nums[1] := 5;
+	nums[2] := 37;
+	nums[3] := 42;
+	nums[4] := 88;
+	nums[5] := 100;
+	nums[6] := 103;
+	nums[7] := 374;
+	
+	var id1 is binsearch(nums, 20);
+	print id1;
+	
+	var id2 is binsearch(nums, 37);
+	print id2;
+end

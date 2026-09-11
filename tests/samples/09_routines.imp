@@ -1,0 +1,12 @@
+routine increment(value : integer, amount : integer) is
+	value := value + amount;
+	print value;
+end
+
+routine main(seed : integer) is
+	var number : integer is 5;
+	
+	increment(number, 2);
+	print number;
+	increment(10, 3);
+end

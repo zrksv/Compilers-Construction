@@ -1,0 +1,29 @@
+routine crossover(parent1 : array [] integer, parent2 : array [] integer, cut : integer) is
+	var n is parent1.size();
+	
+	for i in cut..n loop
+		var temp is parent1[i];
+		parent1[i] := parent2[i];
+		parent2[i] := temp;
+	end
+end
+
+routine main() is
+	var p1 : array [4] integer;
+	var p2 : array [4] integer;
+	
+	for i in 1..4 loop
+		p1[i] := 1;
+		p2[i] := 2;
+	end
+	
+	crossover(p1, p2, 3);
+	
+	for i in 1 .. 4 loop
+		print p1[i]
+	end
+	
+	for i in 1 .. 4 loop
+		print p2[i];
+	end
+end

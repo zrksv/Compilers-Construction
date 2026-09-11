@@ -1,0 +1,16 @@
+routine main(seed : integer) is
+	var current : integer is 1;
+	var total : integer is 0;
+	
+	while current <= 3 loop
+		total := total + current;
+		current := current + 1;
+	end
+	
+	print total;
+	print current;
+	
+	while false loop
+		print 99;
+	end
+end

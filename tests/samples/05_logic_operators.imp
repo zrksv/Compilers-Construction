@@ -1,0 +1,43 @@
+routine main(seed : integer) is
+	var left : boolean is true;
+	var right : boolean is false;
+	
+	if left and right then
+		print 99;
+	else
+		print 0;
+	end
+	
+	if left or right then
+		print 1;
+	else
+		print 99;
+	end
+	
+	if left xor right then
+		print 1;
+	else
+		print 99;
+	end
+	
+	right := true;
+	if left xor right then
+		print 99;
+	else
+		print 0;
+	end
+	
+	if left or right then
+		print 1;
+	else
+		print 99;
+	end
+	
+	if 3 = 3 then
+		print 2;
+	end
+	
+	if 3 /= 3 then
+		print 99;
+	end
+end

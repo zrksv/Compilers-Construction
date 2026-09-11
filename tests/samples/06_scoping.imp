@@ -1,0 +1,11 @@
+routine main(seed : integer) is
+	var value : integer is 10;
+	print value;
+	
+	if true then
+		var value : integer is 20;
+		print value;
+	end
+	
+	print value;
+end

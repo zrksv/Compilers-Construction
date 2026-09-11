@@ -1,0 +1,22 @@
+routine main(seed : integer) is
+	var value : real is 2.75;
+	var rounded : integer is 0;
+	var flag : boolean is true;
+	
+	rounded := value;
+	print rounded;
+	
+	value := 4;
+	rounded := value;
+	print rounded;
+	
+	rounded := flag;
+	print rounded;
+	
+	flag := 0;
+	if flag then
+		print 99;
+	else
+		print 0;
+	end
+end

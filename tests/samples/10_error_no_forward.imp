@@ -1,0 +1,14 @@
+type count is integer;
+
+routine relay(value : count) is
+	announce(value);
+end
+
+routine announce(value : count) is
+	print value;
+end
+
+routine main(seed : integer) is
+	var number : count is 8;
+	relay(number);
+end
