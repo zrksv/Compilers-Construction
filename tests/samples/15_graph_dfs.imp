@@ -1,0 +1,52 @@
+type graph_node is record
+	var val : integer;
+	var visited : boolean;
+	var edge_count : integer;
+	var edges : array [2] integer; 
+end
+
+routine explore_edges(graph : array [] graph_node, u : integer);
+
+routine dfs(graph : array [] graph_node, u : integer) is
+	if not graph[u].visited then
+		graph[u].visited := true; 
+		print graph[u].val;
+		explore_edges(graph, u);
+	end
+end
+
+routine explore_edges(graph : array [] graph_node, u : integer) is
+	var count is graph[u].edge_count;
+	
+	for i in 1 .. count loop
+		var next_id is graph[u].edges[i];
+		dfs(graph, next_id);
+	end
+end
+
+routine main() is
+	var graph : array [4] graph_node;
+	
+	graph[1].val := 10;
+	graph[1].visited := false;
+	graph[1].edge_count := 2;
+	graph[1].edges[1] := 2;
+	graph[1].edges[2] := 3;
+	
+	graph[2].val := 20;
+	graph[2].visited := false;
+	graph[2].edge_count := 1;
+	graph[2].edges[1] := 4;
+	
+	graph[3].val := 30;
+	graph[3].visited := false;
+	graph[3].edge_count := 1;
+	graph[3].edges[1] := 4;
+	
+
+	graph[4].val := 40;
+	graph[4].visited := false;
+	graph[4].edge_count := 0;
+	
+	dfs(graph, 1);
+end

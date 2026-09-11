@@ -1,0 +1,12 @@
+routine main(seed : integer) is
+	var value : integer is 10
+	var saved is value
+	var assigned : integer
+	
+	value := 20
+	assigned := 30
+	
+	print value
+	print saved
+	print assigned
+end

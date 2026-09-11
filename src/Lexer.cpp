@@ -9,19 +9,22 @@ void Lexer::skip_whitespaces() {
     }
 }
 
-// For Leonid
 Token Lexer::lex_word() {
-    return Token{TokenType::Unknown, "", source.get_location()};
+    Location loc = source.get_location();
+    char c = source.get();
+    return Token{TokenType::Unknown, std::string(1, c), loc};
 }
 
-// For Egor
 Token Lexer::lex_number() {
-    return Token{TokenType::Unknown, "", source.get_location()};
+    Location loc = source.get_location();
+    char c = source.get();
+    return Token{TokenType::Unknown, std::string(1, c), loc};
 }
 
-// For Egor
 Token Lexer::lex_oper() {
-    return Token{TokenType::Unknown, "", source.get_location()};
+    Location loc = source.get_location();
+    char c = source.get();
+    return Token{TokenType::Unknown, std::string(1, c), loc};
 }
 
 Token Lexer::next_token() {
