@@ -328,8 +328,8 @@ int main() {
     test_newlines();
     test_errors();
     test_keywords();
-    // test_numbers();
-    // test_operators();
+    test_numbers();
+    test_operators();
 
     run_sample("01_print.imp");
     // run_sample("02_variables.imp");
