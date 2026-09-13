@@ -1,5 +1,6 @@
 #include "Lexer.hpp"
 #include <cctype>
+#include <unordered_map>
 
 void Lexer::skip_whitespaces() {
     char c = source.peek();
@@ -11,8 +12,53 @@ void Lexer::skip_whitespaces() {
 
 Token Lexer::lex_word() {
     Location loc = source.get_location();
-    char c = source.get();
-    return Token{TokenType::Unknown, std::string(1, c), loc};
+    std::string text;
+
+    while (!source.is_eof()) {
+        char c = source.peek();
+        if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
+            text += source.get();
+        } else {
+            break;
+        }
+    }
+
+    static const std::unordered_map<std::string, TokenType> keywords = {
+        {"var", TokenType::Var},
+        {"type", TokenType::Type},
+        {"routine", TokenType::Routine},
+        {"is", TokenType::Is},
+        {"end", TokenType::End},
+        {"integer", TokenType::Integer},
+        {"real", TokenType::Real},
+        {"boolean", TokenType::Bool},
+        {"true", TokenType::True},
+        {"false", TokenType::False},
+        {"array", TokenType::Array},
+        {"record", TokenType::Record},
+        {"while", TokenType::While},
+        {"for", TokenType::For},
+        {"loop", TokenType::Loop},
+        {"reverse", TokenType::Reverse},
+        {"in", TokenType::In},
+        {"if", TokenType::If},
+        {"then", TokenType::Then},
+        {"else", TokenType::Else},
+        {"and", TokenType::And},
+        {"or", TokenType::Or},
+        {"xor", TokenType::Xor},
+        {"not", TokenType::Not},
+        {"print", TokenType::Print},
+        {"return", TokenType::Return},
+        {"size", TokenType::Size},
+    };
+
+    auto it = keywords.find(text);
+    if (it != keywords.end()) {
+        return Token{it->second, text, loc};
+    }
+
+    return Token{TokenType::Identifier, text, loc};
 }
 
 Token Lexer::lex_number() {
