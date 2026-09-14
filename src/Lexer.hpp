@@ -1,5 +1,4 @@
-#ifndef LEXER_HPP
-#define LEXER_HPP
+#pragma once
 #include "SourceManager.hpp"
 #include "Token.hpp"
 
@@ -17,5 +16,3 @@ public:
 
     Token next_token();
 };
-
-#endif //LEXER_HPP

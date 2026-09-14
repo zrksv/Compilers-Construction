@@ -1,3 +1,3 @@
-routine main(seed : integer) is
+routine main() is
 	print 42;
 end

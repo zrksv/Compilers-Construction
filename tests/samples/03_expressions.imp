@@ -1,4 +1,4 @@
-routine main(seed : integer) is
+routine main() is
 	print 7 + 5;
 	print 7 - 5;
 	print 7 * 5;

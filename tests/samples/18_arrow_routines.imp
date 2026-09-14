@@ -1,0 +1,16 @@
+routine square(x : integer) : integer => x * x
+
+routine is_even(val : integer) : boolean => (val % 2) = 0
+
+routine main() is
+	var num1 is 5;
+	var num2 is 8;
+	
+	print square(num1);
+	
+	if is_even(num2) then
+		print 1;
+	else
+		print 0;
+	end
+end

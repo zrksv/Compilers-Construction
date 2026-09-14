@@ -1,5 +1,4 @@
-#ifndef TOKEN_HPP
-#define TOKEN_HPP
+#pragma once
 #include "Location.hpp"
 #include <string>
 
@@ -76,5 +75,3 @@ struct Token {
 };
 
 std::string token_to_string(TokenType type);
-
-#endif //TOKEN_HPP
