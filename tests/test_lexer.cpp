@@ -9,12 +9,24 @@
 #include "SourceManager.hpp"
 #include "Lexer.hpp"
 
+std::string escape_token_text(const std::string& text) {
+    std::string res;
+    for (char c : text) {
+        if (c == '\n') res += "\\n";
+        else if (c == '\t') res += "\\t";
+        else if (c == '\r') res += "\\r";
+        else if (c == '\\') res += "\\\\";
+        else res += c;
+    }
+    return res;
+}
+
 void report_unknown_token(const std::string& code,
                           const Token& tok,
                           const std::string& filename = "<memory>",
                           std::ostream& out = std::cout) {
     out << "\n[LEXICAL ERROR] Unexpected token '" 
-        << tok.text << "' at " 
+        << escape_token_text(tok.text) << "' at " 
         << filename << ":" << tok.location.row << ":" << tok.location.column 
         << "\n";
 
@@ -76,17 +88,6 @@ std::string resolve_path(const std::string& name) {
     return file;
 }
 
-std::string escape_token_text(const std::string& text) {
-    std::string res;
-    for (char c : text) {
-        if (c == '\n') res += "\\n";
-        else if (c == '\t') res += "\\t";
-        else if (c == '\r') res += "\\r";
-        else res += c;
-    }
-    return res;
-}
-
 void run_sample(const std::string& sample_name, bool to_file = false) {
     std::string path = resolve_path(sample_name);
     if (path.empty()) {
@@ -134,8 +135,8 @@ void run_sample(const std::string& sample_name, bool to_file = false) {
         Token tok = lexer.next_token();
         count++;
 
-        out << "Line " << std::setw(2) << tok.location.row 
-            << ", col " << std::setw(2) << tok.location.column 
+        out << "Line " << std::setw(2) << std::right << tok.location.row 
+            << ", col " << std::setw(2) << std::right << tok.location.column 
             << " | " << std::setw(15) << std::left << token_to_string(tok.type) 
             << " ('" << escape_token_text(tok.text) << "')\n";
 
