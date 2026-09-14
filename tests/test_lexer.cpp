@@ -203,7 +203,7 @@ void test_newlines() {
 }
 
 void test_keywords() {
-    std::string code = "var variable routine routines is end return size if format while loop for reverse in then else print and or xor not true false";
+    std::string code = "var variable routine routines is end return size if format while loop for reverse in then else print and or xor not true false type array record integer real boolean bool VAR Routine _ident my_var_123";
     auto types = tokenize_types(code);
 
     assert(types[0] == TokenType::Var);
@@ -230,6 +230,18 @@ void test_keywords() {
     assert(types[21] == TokenType::Not);
     assert(types[22] == TokenType::True);
     assert(types[23] == TokenType::False);
+    assert(types[24] == TokenType::Type);
+    assert(types[25] == TokenType::Array);
+    assert(types[26] == TokenType::Record);
+    assert(types[27] == TokenType::Integer);
+    assert(types[28] == TokenType::Real);
+    assert(types[29] == TokenType::Bool);
+    assert(types[30] == TokenType::Identifier);
+    assert(types[31] == TokenType::Identifier);
+    assert(types[32] == TokenType::Identifier);
+    assert(types[33] == TokenType::Identifier);
+    assert(types[34] == TokenType::Identifier);
+    assert(types[35] == TokenType::Eof);
     std::cout << "[PASS] test_keywords\n";
 }
 
@@ -315,26 +327,26 @@ int main() {
     test_source_manager();
     test_newlines();
     test_errors();
-    // test_keywords();
+    test_keywords();
     test_numbers();
     test_operators();
 
-    run_sample("01_print.imp");
-    // run_sample("02_variables.imp");
-    // run_sample("03_expressions.imp");
-    // run_sample("04_types_and_casting.imp");
-    // run_sample("05_logic_operators.imp");
-    // run_sample("06_scoping.imp");
-    // run_sample("07_while_loop.imp");
-    // run_sample("08_for_loop.imp");
-    // run_sample("09_routines.imp");
-    // run_sample("10_forward_declaration.imp");
-    // run_sample("10_error_no_forward.imp");
-    // run_sample("11_binsearch.imp", true);
-    // run_sample("12_product_except_self.imp", true);
-    // run_sample("13_crossover.imp", true);
-    // run_sample("14_heap.imp", true);
-    // run_sample("15_graph_dfs.imp", true);
+    run_sample("01_print.imp", true);
+    run_sample("02_variables.imp", true);
+    run_sample("03_expressions.imp", true);
+    run_sample("04_types_and_casting.imp", true);
+    run_sample("05_logic_operators.imp", true);
+    run_sample("06_scoping.imp", true);
+    run_sample("07_while_loop.imp", true);
+    run_sample("08_for_loop.imp", true);
+    run_sample("09_routines.imp", true);
+    run_sample("10_forward_declaration.imp", true);
+    run_sample("10_error_no_forward.imp", true);
+    run_sample("11_binsearch.imp", true);
+    run_sample("12_product_except_self.imp", true);
+    run_sample("13_crossover.imp", true);
+    run_sample("14_heap.imp", true);
+    run_sample("15_graph_dfs.imp", true);
 
     return 0;
 }
