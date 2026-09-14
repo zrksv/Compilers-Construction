@@ -1,4 +1,4 @@
-routine main(seed : integer) is
+routine main() is
 	var value : real is 2.75;
 	var rounded : integer is 0;
 	var flag : boolean is true;

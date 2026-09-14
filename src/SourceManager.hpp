@@ -10,7 +10,14 @@ private:
     size_t cursor = 0;
 
 public:
-    explicit SourceManager(const std::string& text) : source(text) {}
+    explicit SourceManager(const std::string& text) : source(text) {
+        if (source.size() >= 3 &&
+            static_cast<unsigned char>(source[0]) == 0xEF &&
+            static_cast<unsigned char>(source[1]) == 0xBB &&
+            static_cast<unsigned char>(source[2]) == 0xBF) {
+            cursor = 3;
+        }
+    }
     char peek() const;
     char peek_next() const;
     char get();

@@ -347,6 +347,11 @@ int main() {
     run_sample("13_crossover.imp", true);
     run_sample("14_heap.imp", true);
     run_sample("15_graph_dfs.imp", true);
+    run_sample("16_records.imp", true);
+    run_sample("17_array_return.imp", true);
+    run_sample("18_arrow_routines.imp", true);
+    run_sample("19_record_return.imp", true);
+    run_sample("20_array_of_array.imp", true);
 
     return 0;
 }

@@ -8,7 +8,7 @@ routine announce(value : count) is
 	print value;
 end
 
-routine main(seed : integer) is
+routine main() is
 	var number : count is 8;
 	relay(number);
 end

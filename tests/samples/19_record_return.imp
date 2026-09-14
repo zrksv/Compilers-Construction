@@ -1,0 +1,17 @@
+type point is record
+	var x : integer;
+	var y : integer;
+end
+
+routine make_point(x : integer, y : integer) : point is
+	var p : point;
+	p.x := x;
+	p.y := y;
+	return p;
+end
+
+routine main() is
+	var pt is make_point(15, 25);
+	print pt.x;
+	print pt.y;
+end

@@ -3,7 +3,7 @@ routine increment(value : integer, amount : integer) is
 	print value;
 end
 
-routine main(seed : integer) is
+routine main() is
 	var number : integer is 5;
 	
 	increment(number, 2);

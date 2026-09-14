@@ -1,4 +1,4 @@
-routine main(seed : integer) is
+routine main() is
 	var current : integer is 1;
 	var total : integer is 0;
 	

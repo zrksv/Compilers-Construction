@@ -1,0 +1,20 @@
+type IntArray is array [3] integer;
+
+routine get_modified_array(arr : IntArray) : IntArray is
+	arr[1] := 999;
+	return arr;
+end
+
+routine main() is
+	var original : IntArray;
+	original[1] := 10;
+	original[2] := 20;
+	original[3] := 30;
+	
+	var copied is get_modified_array(original);
+	
+	copied[2] := 888;
+	
+	print original[1];
+	print original[2];
+end

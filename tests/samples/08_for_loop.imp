@@ -1,4 +1,4 @@
-routine main(seed : integer) is
+routine main() is
 	var total : integer is 0;
 	
 	for i in 1 .. 4 loop

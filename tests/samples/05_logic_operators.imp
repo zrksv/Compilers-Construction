@@ -1,4 +1,4 @@
-routine main(seed : integer) is
+routine main() is
 	var left : boolean is true;
 	var right : boolean is false;
 	

@@ -1,0 +1,34 @@
+type point is record
+	var x : integer;
+	var y : integer;
+end
+
+type rect is record
+	var top_left : point;
+	var bottom_right : point;
+end
+
+routine move_rect(r : rect, dx : integer, dy : integer) is
+	r.top_left.x := r.top_left.x + dx;
+	r.top_left.y := r.top_left.y + dy;
+	r.bottom_right.x := r.bottom_right.x + dx;
+	r.bottom_right.y := r.bottom_right.y + dy;
+end
+
+routine main() is
+	var p1 : point;
+	var p2 : point;
+	p1.x := 0;
+	p1.y := 10;
+	p2.x := 10;
+	p2.y := 0;
+	
+	var my_rect : rect;
+	my_rect.top_left := p1;
+	my_rect.bottom_right := p2;
+	
+	move_rect(my_rect, 5, 5);
+	
+	print my_rect.top_left.x;
+	print my_rect.top_left.y;
+end
