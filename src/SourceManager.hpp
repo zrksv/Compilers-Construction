@@ -1,5 +1,4 @@
-#ifndef SOURCEMANAGER_HPP
-#define SOURCEMANAGER_HPP
+#pragma once
 #include "Location.hpp"
 #include <string>
 
@@ -24,6 +23,3 @@ public:
     bool is_eof() const;
     Location get_location() const;
 };
-
-
-#endif //SOURCEMANAGER_HPP
