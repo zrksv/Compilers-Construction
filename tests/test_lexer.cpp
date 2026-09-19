@@ -81,11 +81,24 @@ std::string read_file(const std::string& path) {
     return ss.str();
 }
 
+static std::filesystem::path find_tests_dir() {
+    std::filesystem::path cur = std::filesystem::current_path();
+    for (int i = 0; i < 5; ++i) {
+        if (std::filesystem::exists(cur / "tests" / "samples")) {
+            return cur / "tests";
+        }
+        if (std::filesystem::exists(cur / "samples")) {
+            return cur;
+        }
+        if (!cur.has_parent_path()) break;
+        cur = cur.parent_path();
+    }
+    return "tests";
+}
+
 std::string resolve_path(const std::string& name) {
     std::string file = name.ends_with(".imp") ? name : name + ".imp";
-    if (std::filesystem::exists("tests/samples/" + file)) return "tests/samples/" + file;
-    if (std::filesystem::exists("../tests/samples/" + file)) return "../tests/samples/" + file;
-    return file;
+    return (find_tests_dir() / "samples" / file).string();
 }
 
 void run_sample(const std::string& sample_name, bool to_file = false) {
@@ -108,10 +121,10 @@ void run_sample(const std::string& sample_name, bool to_file = false) {
     std::string out_path;
 
     if (to_file) {
-        std::string out_dir = std::filesystem::exists("tests") ? "tests/output" : "../tests/output";
+        std::filesystem::path out_dir = find_tests_dir() / "output";
         std::filesystem::create_directories(out_dir);
-        out_path = out_dir + "/" + stem + ".txt";
-        out_file.open(out_path);
+        out_path = (out_dir / (stem + ".txt")).string();
+        out_file.open(out_path, std::ios::out | std::ios::trunc);
         if (!out_file.is_open()) {
             std::cerr << "[ERROR] Could not open output file: " << out_path << "\n";
             return;
