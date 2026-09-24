@@ -2,8 +2,8 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include "SourceManager.hpp"
-#include "Lexer.hpp"
+#include "../common/SourceManager.hpp"
+#include "../lexer/Lexer.hpp"
 
 using namespace std;
 
