@@ -4,11 +4,15 @@
 #include <memory>
 #include "../common/Location.hpp"
 
+class AstPrinter;
+
 class AstNode {
 public:
     Location location;
 
     virtual ~AstNode() = default;
+
+    virtual void accept(AstPrinter& printer) = 0;
 };
 
 class Expression : public AstNode {};
@@ -22,6 +26,8 @@ public:
     IntLiteral(int val, Location loc) : value(val) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class RealLiteral : public Expression {
@@ -31,6 +37,8 @@ public:
     RealLiteral(double val, Location loc) : value(val) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class BoolLiteral : public Expression {
@@ -40,6 +48,8 @@ public:
     BoolLiteral(bool val, Location loc) : value(val) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class Identifier : public Expression {
@@ -49,6 +59,8 @@ public:
     Identifier(std::string val, Location loc) : name(std::move(val)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 enum class UnaryOp {
@@ -64,6 +76,8 @@ public:
         : op(op), child(std::move(child)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 enum class BinOp {
@@ -82,6 +96,8 @@ public:
         : op(op), left(std::move(left)), right(std::move(right)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class RoutineCallExpr : public Expression {
@@ -93,6 +109,8 @@ public:
         : routine_name(std::move(name)), arguments(std::move(args)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class AssignStatement : public Statement {
@@ -104,6 +122,8 @@ public:
         : name(std::move(name)), value(std::move(val)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class RoutineCallStmt : public Statement {
@@ -115,6 +135,8 @@ public:
         : routine_name(std::move(name)), arguments(std::move(args)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class PrintStatement : public Statement {
@@ -125,6 +147,8 @@ public:
         : to_print(std::move(for_print)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class IfStatement : public Statement {
@@ -140,6 +164,8 @@ public:
         : condition(std::move(cond)), then_body(std::move(then_b)), else_body(std::move(else_b)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class WhileStatement : public Statement {
@@ -151,6 +177,8 @@ public:
         : condition(std::move(cond)), body(std::move(b)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class ForStatement : public Statement {
@@ -171,6 +199,8 @@ public:
           range_end(std::move(end)), is_reverse(rev), body(std::move(b)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class ReturnStatement : public Statement {
@@ -181,6 +211,8 @@ public:
         : expression(std::move(expr)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class VariableDeclaration : public Declaration {
@@ -193,6 +225,8 @@ public:
         : name(std::move(name)), type(std::move(type)), expression(std::move(exp)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
 
 class RoutineDeclaration : public Declaration {
@@ -210,5 +244,8 @@ public:
         : name(std::move(name)), parameters(std::move(params)), return_type(std::move(ret_type)), body(std::move(b)) {
         this->location = loc;
     }
+
+    void accept(AstPrinter& printer) override;
 };
+
 

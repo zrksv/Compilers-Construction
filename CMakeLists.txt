@@ -13,7 +13,10 @@ add_executable(Compilers_Construction
         src/lexer/Lexer.cpp
         src/lexer/Lexer.hpp
         src/common/Location.hpp
-        src/ast/AST.hpp)
+        src/ast/AST.hpp
+        src/ast/ASTPrinter.hpp
+        src/ast/ASTPrinter.cpp
+        src/ast/tests/test_ast_printer.cpp)
 
 add_executable(lexer_tests
     tests/test_lexer.cpp
@@ -21,3 +24,5 @@ add_executable(lexer_tests
         src/common/SourceManager.cpp
         src/lexer/Lexer.cpp
 )
+
+add_subdirectory(src/ast)
