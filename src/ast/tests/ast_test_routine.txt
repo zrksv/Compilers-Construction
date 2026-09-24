@@ -1,0 +1,6 @@
+RoutineDeclaration(calculate_sum) params: [a, b] returns: integer
+└── Body:
+    └── ReturnStatement
+        └── Value: BinaryExpr(+)
+            ├── Left: Identifier(a)
+            └── Right: Identifier(b)

@@ -94,7 +94,7 @@ Token Lexer::lex_oper() {
         case '+': return Token{TokenType::Plus, text, loc};
         case '-': return Token{TokenType::Minus, text, loc};
         case '*': return Token{TokenType::Mul, text, loc};
-        case '%': return Token{TokenType::Rem, text, loc};
+        case '%': return Token{TokenType::Mod, text, loc};
         case '(': return Token{TokenType::LeftPar, text, loc};
         case ')': return Token{TokenType::RightPar, text, loc};
         case '[': return Token{TokenType::LeftBr, text, loc};

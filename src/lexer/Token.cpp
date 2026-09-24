@@ -42,7 +42,7 @@ std::string token_to_string(TokenType type) {
         case TokenType::Minus: return "Minus";
         case TokenType::Mul: return "Mul";
         case TokenType::Div: return "Div";
-        case TokenType::Rem: return "Rem";
+        case TokenType::Mod: return "Mod";
         case TokenType::Less: return "Less";
         case TokenType::LessEqual: return "LessEqual";
         case TokenType::Greater: return "Greater";

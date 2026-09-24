@@ -1,0 +1,2 @@
+VariableDeclaration(flag : boolean)
+└── Init: BoolLiteral(true)

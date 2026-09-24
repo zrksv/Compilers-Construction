@@ -1,5 +1,5 @@
 #pragma once
-#include "SourceManager.hpp"
+#include "../common/SourceManager.hpp"
 #include "Token.hpp"
 
 class Lexer {

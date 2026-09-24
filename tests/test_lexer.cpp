@@ -6,8 +6,8 @@
 #include <string>
 #include <cassert>
 #include <filesystem>
-#include "SourceManager.hpp"
-#include "Lexer.hpp"
+#include "common/SourceManager.hpp"
+#include "lexer/Lexer.hpp"
 
 std::string escape_token_text(const std::string& text) {
     std::string res;
@@ -293,7 +293,7 @@ void test_operators() {
     assert(types[12] == TokenType::Plus);
     assert(types[13] == TokenType::Minus);
     assert(types[14] == TokenType::Mul);
-    assert(types[15] == TokenType::Rem);
+    assert(types[15] == TokenType::Mod);
     assert(types[16] == TokenType::LeftPar);
     assert(types[17] == TokenType::RightPar);
     assert(types[18] == TokenType::LeftBr);

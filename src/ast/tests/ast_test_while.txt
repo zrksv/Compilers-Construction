@@ -1,0 +1,7 @@
+WhileLoop
+├── Condition: BinaryExpr(<)
+│   ├── Left: Identifier(x)
+│   └── Right: IntLiteral(10)
+└── Body:
+    └── PrintStatement
+        └── Arg: Identifier(x)

@@ -1,5 +1,5 @@
 #pragma once
-#include "Location.hpp"
+#include "../common//Location.hpp"
 #include <string>
 
 enum class TokenType {
@@ -43,7 +43,7 @@ enum class TokenType {
     Minus,
     Mul,
     Div,
-    Rem,
+    Mod,
     Less,
     LessEqual,
     Greater,

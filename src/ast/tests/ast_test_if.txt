@@ -1,0 +1,12 @@
+IfStatement
+├── Condition: BinaryExpr(<)
+│   ├── Left: Identifier(x)
+│   └── Right: IntLiteral(10)
+├── Then:
+│   └── AssignStatement(x)
+│       └── Value: BinaryExpr(+)
+│           ├── Left: Identifier(x)
+│           └── Right: IntLiteral(1)
+└── Else:
+    └── AssignStatement(x)
+        └── Value: IntLiteral(0)
