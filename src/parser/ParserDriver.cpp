@@ -1,7 +1,6 @@
 #include "ParserDriver.hpp"
 #include <fstream>
 #include <sstream>
-
 #include "Parser.hpp"
 
 bool ParserDriver::parse(SourceManager& source_manager) {

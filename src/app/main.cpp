@@ -2,27 +2,29 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include "../common/SourceManager.hpp"
-#include "../lexer/Lexer.hpp"
+#include "../src/common/SourceManager.hpp"
+#include "../src/lexer/Lexer.hpp"
+#include "../src/parser/ParserDriver.hpp"
+#include "../src/ast/ASTPrinter.hpp"
 
 using namespace std;
 
-static string escape_token_text(const string& text) {
-    string res;
-    for (char c : text) {
-        if (c == '\n') res += "\\n";
-        else if (c == '\t') res += "\\t";
-        else if (c == '\r') res += "\\r";
-        else if (c == '\\') res += "\\\\";
-        else res += c;
-    }
-    return res;
-}
-
 int main(int argc, char* argv[]) {
-    ifstream file(argv[1]);
+    if (argc < 2) {
+        cerr << "Usage: Compilers_Construction <source.imp> [--tokens] [routine_name] [args...]\n";
+        return 1;
+    }
+
+    string filename = argv[1];
+    bool print_tokens = false;
+
+    if (argc >= 3 && string(argv[2]) == "--tokens") {
+        print_tokens = true;
+    }
+
+    ifstream file(filename);
     if (!file.is_open()) {
-        cerr << "Cannot open file: " << argv[1] << "\n";
+        cerr << "Cannot open file: " << filename << "\n";
         return 1;
     }
 
@@ -32,34 +34,32 @@ int main(int argc, char* argv[]) {
     SourceManager sm(buffer.str());
     Lexer lexer(sm);
 
-    int count = 0;
-    int error_count = 0;
-
-    cout << "--- Tokens ---\n";
-    while (true) {
-        Token tok = lexer.next_token();
-        count++;
-
-        if (tok.type == TokenType::Unknown) {
-            error_count++;
-        }
-
-        string loc = to_string(tok.location.row) + ":" + to_string(tok.location.column);
-        cout << left << setw(8) << loc
-             << " " << setw(18) << token_to_string(tok.type)
-             << " '" << escape_token_text(tok.text) << "'\n";
-
-        if (tok.type == TokenType::Eof) {
-            break;
-        }
+    if (print_tokens) {
+        cout << "--- Tokens ---\n";
+        Token tok;
+        do {
+            tok = lexer.next_token();
+            cout << left << setw(8) << (to_string(tok.location.row) + ":" + to_string(tok.location.column))
+                 << " " << setw(18) << token_to_string(tok.type)
+                 << " '" << tok.text << "'\n";
+        } while (tok.type != TokenType::Eof);
+        return 0;
     }
 
-    cout << "----------------------------------------\n";
-    cout << "Total: " << count << " token(s) scanned";
-    if (error_count > 0) {
-        cout << ", " << error_count << " error(s) found";
-    }
-    cout << "\n";
+    ParserDriver driver(lexer);
+    int parse_result = driver.parse();
 
-    return (error_count == 0) ? 0 : 1;
+    if (parse_result == 0) {
+        cout << "Parsing successful! AST:\n";
+        auto ast = driver.get_ast();
+        if (ast) {
+            AstPrinter printer(cout);
+            ast->accept(printer);
+            cout << "\n";
+        }
+    } else {
+        cerr << "Parsing failed due to syntax errors.\n";
+    }
+
+    return parse_result;
 }

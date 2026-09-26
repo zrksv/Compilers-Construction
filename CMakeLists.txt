@@ -29,5 +29,10 @@ add_executable(lexer_tests
         src/lexer/Lexer.cpp
 )
 
+enable_testing()
+
+add_subdirectory(src/common)
+add_subdirectory(src/lexer)
 add_subdirectory(src/ast)
-add_subdirectory(src/parser)
+
+add_subdirectory(tests)
