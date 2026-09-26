@@ -1,3 +1,22 @@
+#include <iostream>
+#include <cassert>
+#include <vector>
+#include "../src/common/SourceManager.hpp"
+#include "../../lexer/Token.hpp"
+#include "../../lexer/Lexer.hpp"
+
+std::vector<TokenType> tokenize_types(const std::string& code) {
+    SourceManager sm(code);
+    Lexer lexer(sm);
+    std::vector<TokenType> types;
+    while (true) {
+        Token tok = lexer.next_token();
+        types.push_back(tok.type);
+        if (tok.type == TokenType::Eof) break;
+    }
+    return types;
+}
+
 void test_source_manager() {
     SourceManager sm("ab\n c\t\n");
     assert(sm.peek() == 'a');
