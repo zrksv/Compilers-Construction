@@ -14,9 +14,13 @@ add_executable(Compilers_Construction
         src/lexer/Lexer.hpp
         src/common/Location.hpp
         src/ast/AST.hpp
+        src/ast/AST.cpp
         src/ast/ASTPrinter.hpp
         src/ast/ASTPrinter.cpp
-        src/ast/tests/test_ast_printer.cpp)
+        src/parser/ParserDriver.hpp
+        src/parser/ParserDriver.cpp
+        src/parser/Parser.hpp
+        src/parser/Parser.cpp)
 
 add_executable(lexer_tests
     tests/test_lexer.cpp
@@ -26,3 +30,4 @@ add_executable(lexer_tests
 )
 
 add_subdirectory(src/ast)
+add_subdirectory(src/parser)
