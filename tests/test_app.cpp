@@ -27,7 +27,7 @@ void test_syntax_error_file() {
 
 void test_tokens_flag() {
     int exit_code = run_app("tests/samples/01_print.imp --tokens");
-    assert(exit_code == 0); // Тут всё должно быть успешно (0)
+    assert(exit_code == 0);
     std::cout << "[PASS] App handles --tokens flag\n";
 }
 
@@ -36,7 +36,7 @@ int main() {
     test_missing_arguments();
     test_file_not_found();
     test_tokens_flag();
-    // test_syntax_error_file(); // Раскомментируем, когда Лёня допишет обработку ошибок
+    test_syntax_error_file();
 
     std::cout << "All App CLI tests passed!\n";
     return 0;
