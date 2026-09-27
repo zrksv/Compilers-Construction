@@ -12,17 +12,16 @@ void run_pipeline_test(const std::string& sample_name) {
 
     SourceManager sm(code);
     Lexer lexer(sm);
-    ParserDriver driver(lexer);
+    ParserDriver driver;
 
     std::cout << "Testing pipeline for: " << sample_name << "...\n";
 
-    int parse_result = driver.parse();
-    assert(parse_result == 0 && "Parsing failed!");
+    bool parse_success = driver.parse(lexer);
+    assert(parse_success && "Parsing failed!");
 
     auto ast = driver.get_ast();
     assert(ast != nullptr && "AST is null!");
 
-    // Правильный вызов Аниного принтера:
     AstPrinter printer(std::cout);
     ast->accept(printer);
 
@@ -30,8 +29,7 @@ void run_pipeline_test(const std::string& sample_name) {
 }
 
 int main() {
-    // Пока Лёня не напишет Parser.yy, этот тест будет падать, это нормально!
-    // run_pipeline_test("01_print.imp");
+    run_pipeline_test("01_print.imp");
     std::cout << "Pipeline tests ready.\n";
     return 0;
 }

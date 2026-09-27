@@ -2,16 +2,16 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include "../src/common/SourceManager.hpp"
-#include "../src/lexer/Lexer.hpp"
-#include "../src/parser/ParserDriver.hpp"
-#include "../src/ast/ASTPrinter.hpp"
+#include "SourceManager.hpp"
+#include "Lexer.hpp"
+#include "ParserDriver.hpp"
+#include "ASTPrinter.hpp"
 
 using namespace std;
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        cerr << "Usage: Compilers_Construction <source.imp> [--tokens] [routine_name] [args...]\n";
+        cerr << "Usage: fair_compiler <source.imp> [--tokens] [routine_name] [args...]\n";
         return 1;
     }
 
@@ -46,10 +46,10 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    ParserDriver driver(lexer);
-    int parse_result = driver.parse();
+    ParserDriver driver;
+    bool parse_success = driver.parse(lexer);
 
-    if (parse_result == 0) {
+    if (parse_success) {
         cout << "Parsing successful! AST:\n";
         auto ast = driver.get_ast();
         if (ast) {
@@ -58,8 +58,13 @@ int main(int argc, char* argv[]) {
             cout << "\n";
         }
     } else {
-        cerr << "Parsing failed due to syntax errors.\n";
+        cerr << "Parsing failed due to syntax errors:\n";
+        for (const auto& err : driver.get_errors()) {
+            cerr << "Error at " << err.location.row << ":" << err.location.column
+                 << " - " << err.message << "\n";
+        }
+        return 1;
     }
 
-    return parse_result;
+    return 0;
 }
