@@ -8,18 +8,7 @@
 #include <filesystem>
 #include "common/SourceManager.hpp"
 #include "lexer/Lexer.hpp"
-
-std::string escape_token_text(const std::string& text) {
-    std::string res;
-    for (char c : text) {
-        if (c == '\n') res += "\\n";
-        else if (c == '\t') res += "\\t";
-        else if (c == '\r') res += "\\r";
-        else if (c == '\\') res += "\\\\";
-        else res += c;
-    }
-    return res;
-}
+#include "../../../tests/TestUtils.hpp"
 
 void report_unknown_token(const std::string& code,
                           const Token& tok,
@@ -71,34 +60,6 @@ std::vector<TokenType> tokenize_types(const std::string& code) {
         }
     }
     return types;
-}
-
-std::string read_file(const std::string& path) {
-    std::ifstream file(path);
-    if (!file.is_open()) return "";
-    std::stringstream ss;
-    ss << file.rdbuf();
-    return ss.str();
-}
-
-static std::filesystem::path find_tests_dir() {
-    std::filesystem::path cur = std::filesystem::current_path();
-    for (int i = 0; i < 5; ++i) {
-        if (std::filesystem::exists(cur / "tests" / "samples")) {
-            return cur / "tests";
-        }
-        if (std::filesystem::exists(cur / "samples")) {
-            return cur;
-        }
-        if (!cur.has_parent_path()) break;
-        cur = cur.parent_path();
-    }
-    return "tests";
-}
-
-std::string resolve_path(const std::string& name) {
-    std::string file = name.ends_with(".imp") ? name : name + ".imp";
-    return (find_tests_dir() / "samples" / file).string();
 }
 
 void run_sample(const std::string& sample_name, bool to_file = false) {
@@ -183,37 +144,6 @@ void run_sample(const std::string& sample_name, bool to_file = false) {
     } else {
         std::cout << "\n";
     }
-}
-
-void test_source_manager() {
-    SourceManager sm("ab\n c\t\n");
-    assert(sm.peek() == 'a');
-    assert(sm.peek_next() == 'b');
-    assert(sm.get() == 'a');
-    assert(sm.get_location().column == 2);
-
-    assert(sm.get() == 'b');
-    assert(sm.get() == '\n');
-    assert(sm.get_location().row == 2);
-    assert(sm.get_location().column == 1);
-
-    assert(sm.get() == ' ');
-    assert(sm.get() == 'c');
-    assert(sm.get() == '\t');
-    assert(sm.get() == '\n');
-    assert(sm.get_location().row == 3);
-    assert(sm.get_location().column == 1);
-    assert(sm.is_eof());
-    std::cout << "[PASS] test_source_manager\n";
-}
-
-void test_newlines() {
-    auto types = tokenize_types("  \t\n  \n");
-    assert(types.size() == 3);
-    assert(types[0] == TokenType::NewLine);
-    assert(types[1] == TokenType::NewLine);
-    assert(types[2] == TokenType::Eof);
-    std::cout << "[PASS] test_newlines\n";
 }
 
 void test_keywords() {
@@ -338,8 +268,6 @@ void test_errors() {
 }
 
 int main() {
-    test_source_manager();
-    test_newlines();
     test_errors();
     test_keywords();
     test_numbers();
