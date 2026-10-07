@@ -1,0 +1,3 @@
+add_executable(test_source_manager test_source_manager.cpp)
+
+target_link_libraries(test_source_manager PRIVATE common lexer)
