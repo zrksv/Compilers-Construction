@@ -36,28 +36,6 @@ yy::Parser::symbol_type yylex(ParserDriver& driver);
 void yy::Parser::error(const Location& loc, const std::string& msg) {
     driver.error(loc, msg);
 }
-
-static std::string type_to_string(const TypeNode* node) {
-    if (!node) return "";
-    if (auto* p = dynamic_cast<const PrimitiveTypeNode*>(node)) return p->type_name;
-    if (auto* id = dynamic_cast<const IdentifierTypeNode*>(node)) return id->name;
-    if (auto* arr = dynamic_cast<const ArrayTypeNode*>(node)) {
-        std::string s = "array [";
-        if (arr->size) {
-            if (auto* il = dynamic_cast<const IntLiteral*>(arr->size.get())) {
-                s += std::to_string(il->value);
-            } else if (auto* id = dynamic_cast<const Identifier*>(arr->size.get())) {
-                s += id->name;
-            }
-        }
-        s += "] " + type_to_string(arr->element_type.get());
-        return s;
-    }
-    if (dynamic_cast<const RecordTypeNode*>(node)) {
-        return "record";
-    }
-    return "";
-}
 }
 
 %token <std::string> IDENTIFIER
@@ -93,60 +71,92 @@ static std::string type_to_string(const TypeNode* node) {
 %nterm <VariableDeclaration*> variable_declaration
 %nterm <TypeDeclaration*> type_declaration
 %nterm <RoutineDeclaration*> routine_declaration
-%nterm <TypeNode*> type_spec primitive_type array_type record_type
+%nterm <TypeNode*> type_spec primitive_type array_type record_type optional_return_type
 %nterm <std::vector<VariableDeclaration*>> record_fields
-%nterm <std::vector<AstNode*>> body body_items
-%nterm <AstNode*> body_item
-%nterm <std::vector<std::string>> parameter_list parameters
-%nterm <std::string> parameter optional_return_type field_name
+%nterm <std::vector<AstNode*>> body body_items top_items
+%nterm <AstNode*> body_item top_item
+%nterm <std::vector<ParameterDeclaration*>> parameter_list parameters
+%nterm <ParameterDeclaration*> parameter
+%nterm <std::string> field_name
 %nterm <bool> optional_reverse
 
 %%
 
 program:
     opt_seps top_items opt_seps
+    {
+        std::vector<std::unique_ptr<AstNode>> decls;
+        for (auto* item : $2) {
+            decls.emplace_back(item);
+        }
+        driver.set_ast_root(std::make_unique<Program>(std::move(decls), @1));
+    }
   | opt_seps
+    {
+        driver.set_ast_root(std::make_unique<Program>(std::vector<std::unique_ptr<AstNode>>{}, @1));
+    }
   ;
 
 top_items:
     top_item
+    {
+        std::vector<AstNode*> items;
+        items.push_back($1);
+        $$ = std::move(items);
+    }
   | top_items seps top_item
+    {
+        $1.push_back($3);
+        $$ = std::move($1);
+    }
   ;
 
 top_item:
     routine_declaration
     {
-        driver.set_ast_root(std::unique_ptr<AstNode>($1));
+        $$ = $1;
     }
   | declaration
     {
-        driver.set_ast_root(std::unique_ptr<AstNode>($1));
+        $$ = $1;
     }
   ;
 
 routine_declaration:
     ROUTINE IDENTIFIER LPAREN parameter_list RPAREN optional_return_type IS body END
     {
+        std::vector<std::unique_ptr<ParameterDeclaration>> param_vec;
+        for (auto* p : $4) {
+            param_vec.emplace_back(p);
+        }
         std::vector<std::unique_ptr<AstNode>> body_vec;
         for (auto* item : $8) {
             body_vec.emplace_back(item);
         }
-        $$ = new RoutineDeclaration($2, std::move($4), $6, std::move(body_vec), @1);
+        $$ = new RoutineDeclaration($2, std::move(param_vec), std::unique_ptr<TypeNode>($6), std::move(body_vec), @1);
     }
   | ROUTINE IDENTIFIER LPAREN parameter_list RPAREN optional_return_type ARROW expression
     {
-        $$ = new RoutineDeclaration($2, std::move($4), $6, std::unique_ptr<Expression>($8), @1);
+        std::vector<std::unique_ptr<ParameterDeclaration>> param_vec;
+        for (auto* p : $4) {
+            param_vec.emplace_back(p);
+        }
+        $$ = new RoutineDeclaration($2, std::move(param_vec), std::unique_ptr<TypeNode>($6), std::unique_ptr<Expression>($8), @1);
     }
   | ROUTINE IDENTIFIER LPAREN parameter_list RPAREN optional_return_type
     {
-        $$ = new RoutineDeclaration($2, std::move($4), $6, @1);
+        std::vector<std::unique_ptr<ParameterDeclaration>> param_vec;
+        for (auto* p : $4) {
+            param_vec.emplace_back(p);
+        }
+        $$ = new RoutineDeclaration($2, std::move(param_vec), std::unique_ptr<TypeNode>($6), @1);
     }
   ;
 
 parameter_list:
     %empty
     {
-        $$ = std::vector<std::string>{};
+        $$ = std::vector<ParameterDeclaration*>{};
     }
   | parameters
     {
@@ -157,7 +167,7 @@ parameter_list:
 parameters:
     parameter
     {
-        std::vector<std::string> params;
+        std::vector<ParameterDeclaration*> params;
         params.push_back($1);
         $$ = std::move(params);
     }
@@ -171,24 +181,22 @@ parameters:
 parameter:
     IDENTIFIER COLON type_spec
     {
-        $$ = $1 + " : " + type_to_string($3);
-        delete $3;
+        $$ = new ParameterDeclaration($1, std::unique_ptr<TypeNode>($3), @1);
     }
   | IDENTIFIER
     {
-        $$ = $1;
+        $$ = new ParameterDeclaration($1, @1);
     }
   ;
 
 optional_return_type:
     %empty
     {
-        $$ = "";
+        $$ = nullptr;
     }
   | COLON type_spec
     {
-        $$ = type_to_string($2);
-        delete $2;
+        $$ = $2;
     }
   ;
 
@@ -278,25 +286,15 @@ record_fields:
 variable_declaration:
     VAR IDENTIFIER COLON type_spec IS expression
     {
-        if (auto* prim = dynamic_cast<PrimitiveTypeNode*>($4)) {
-            $$ = new VariableDeclaration($2, prim->type_name, std::unique_ptr<Expression>($6), @1);
-            delete prim;
-        } else {
-            $$ = new VariableDeclaration($2, std::unique_ptr<TypeNode>($4), std::unique_ptr<Expression>($6), @1);
-        }
+        $$ = new VariableDeclaration($2, std::unique_ptr<TypeNode>($4), std::unique_ptr<Expression>($6), @1);
     }
   | VAR IDENTIFIER COLON type_spec
     {
-        if (auto* prim = dynamic_cast<PrimitiveTypeNode*>($4)) {
-            $$ = new VariableDeclaration($2, prim->type_name, nullptr, @1);
-            delete prim;
-        } else {
-            $$ = new VariableDeclaration($2, std::unique_ptr<TypeNode>($4), nullptr, @1);
-        }
+        $$ = new VariableDeclaration($2, std::unique_ptr<TypeNode>($4), nullptr, @1);
     }
   | VAR IDENTIFIER IS expression
     {
-        $$ = new VariableDeclaration($2, "", std::unique_ptr<Expression>($4), @1);
+        $$ = new VariableDeclaration($2, nullptr, std::unique_ptr<Expression>($4), @1);
     }
   ;
 
@@ -392,6 +390,14 @@ statement:
             b.emplace_back(n);
         }
         $$ = new ForStatement($2, std::unique_ptr<Expression>($4), std::unique_ptr<Expression>($6), $7, std::move(b), @1);
+    }
+  | FOR IDENTIFIER IN expression optional_reverse LOOP body END
+    {
+        std::vector<std::unique_ptr<AstNode>> b;
+        for (auto* n : $7) {
+            b.emplace_back(n);
+        }
+        $$ = new ForStatement($2, std::unique_ptr<Expression>($4), $5, std::move(b), @1);
     }
   | RETURN
     {
