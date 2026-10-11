@@ -543,6 +543,147 @@ void test_sample_20_matrix() {
     std::cout << "[PASS] test_sample_20_matrix (20_array_of_array.imp)\n";
 }
 
+void test_error_recovery_multiple_statements() {
+    std::string code = "routine foo() is\n"
+                       "    var a is 10;\n"
+                       "    bad syntax here 123 + ;\n"
+                       "    var b is 20;\n"
+                       "    another broken @@ statement ;\n"
+                       "    print a + b;\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(!ok && "Expected parsing to fail due to syntax errors");
+    assert(driver.has_errors() && "Expected parser to report errors");
+    assert(driver.get_errors().size() >= 2 && "Expected multiple errors to be recovered and reported");
+    assert(prog != nullptr && "Expected non-null AST root despite syntax errors");
+    assert(prog->declarations.size() == 1);
+
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(routine != nullptr);
+    assert(routine->name == "foo");
+    assert(routine->body.size() == 3);
+
+    auto* varA = dynamic_cast<VariableDeclaration*>(routine->body[0].get());
+    assert(varA != nullptr && varA->name == "a");
+
+    auto* varB = dynamic_cast<VariableDeclaration*>(routine->body[1].get());
+    assert(varB != nullptr && varB->name == "b");
+
+    auto* printStmt = dynamic_cast<PrintStatement*>(routine->body[2].get());
+    assert(printStmt != nullptr);
+
+    std::ostringstream oss;
+    AstPrinter printer(oss);
+    prog->accept(printer);
+    assert(!oss.str().empty());
+
+    std::cout << "[PASS] test_error_recovery_multiple_statements\n";
+}
+
+void test_error_recovery_top_level() {
+    std::string code = "routine first() is\n"
+                       "    print 1;\n"
+                       "end;\n"
+                       "bad top level declaration 999;\n"
+                       "routine second() is\n"
+                       "    print 2;\n"
+                       "end;\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok && "Expected parsing to fail due to top-level syntax error");
+    assert(driver.has_errors());
+    assert(!driver.get_errors().empty());
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 2 && "Expected both valid routines to be recovered");
+
+    auto* r1 = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(r1 != nullptr && r1->name == "first");
+
+    auto* r2 = dynamic_cast<RoutineDeclaration*>(prog->declarations[1].get());
+    assert(r2 != nullptr && r2->name == "second");
+
+    std::ostringstream oss;
+    AstPrinter printer(oss);
+    prog->accept(printer);
+    assert(!oss.str().empty());
+
+    std::cout << "[PASS] test_error_recovery_top_level\n";
+}
+
+void test_error_recovery_record_fields() {
+    std::string code = "type Point is record\n"
+                       "    var x : integer;\n"
+                       "    var broken_field : ;\n"
+                       "    var y : integer;\n"
+                       "end;\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok && "Expected parsing to fail due to record field error");
+    assert(driver.has_errors());
+    assert(!driver.get_errors().empty());
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1);
+
+    auto* typeDecl = dynamic_cast<TypeDeclaration*>(prog->declarations[0].get());
+    assert(typeDecl != nullptr && typeDecl->name == "Point");
+
+    auto* recType = dynamic_cast<RecordTypeNode*>(typeDecl->type.get());
+    assert(recType != nullptr);
+    assert(recType->declarations.size() == 2 && "Expected valid fields x and y to be recovered");
+    assert(recType->declarations[0]->name == "x");
+    assert(recType->declarations[1]->name == "y");
+
+    std::ostringstream oss;
+    AstPrinter printer(oss);
+    prog->accept(printer);
+    assert(!oss.str().empty());
+
+    std::cout << "[PASS] test_error_recovery_record_fields\n";
+}
+
+void test_error_recovery_nested_block() {
+    std::string code = "routine nested() is\n"
+                       "    if true then\n"
+                       "        var ok1 is 1;\n"
+                       "        broken +++ syntax;\n"
+                       "        var ok2 is 2;\n"
+                       "    end\n"
+                       "    print 42;\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok && "Expected parsing to fail due to nested syntax error");
+    assert(driver.has_errors());
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1);
+
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(routine != nullptr && routine->body.size() == 2);
+
+    auto* ifStmt = dynamic_cast<IfStatement*>(routine->body[0].get());
+    assert(ifStmt != nullptr);
+    assert(ifStmt->then_body.size() == 2);
+
+    auto* v1 = dynamic_cast<VariableDeclaration*>(ifStmt->then_body[0].get());
+    assert(v1 != nullptr && v1->name == "ok1");
+
+    auto* v2 = dynamic_cast<VariableDeclaration*>(ifStmt->then_body[1].get());
+    assert(v2 != nullptr && v2->name == "ok2");
+
+    auto* printStmt = dynamic_cast<PrintStatement*>(routine->body[1].get());
+    assert(printStmt != nullptr);
+
+    std::cout << "[PASS] test_error_recovery_nested_block\n";
+}
+
 int main() {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -566,6 +707,11 @@ int main() {
     test_sample_16_records();
     test_sample_18_arrow();
     test_sample_20_matrix();
+
+    test_error_recovery_multiple_statements();
+    test_error_recovery_top_level();
+    test_error_recovery_record_fields();
+    test_error_recovery_nested_block();
 
     std::cout << "All parser tests passed successfully!\n";
     return 0;

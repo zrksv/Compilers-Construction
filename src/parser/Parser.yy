@@ -68,7 +68,7 @@ void yy::Parser::error(const Location& loc, const std::string& msg) {
 %nterm <std::vector<Expression*>> expression_list argument_list
 %nterm <Statement*> statement
 %nterm <Declaration*> declaration
-%nterm <VariableDeclaration*> variable_declaration
+%nterm <VariableDeclaration*> variable_declaration record_field
 %nterm <TypeDeclaration*> type_declaration
 %nterm <RoutineDeclaration*> routine_declaration
 %nterm <TypeNode*> type_spec primitive_type array_type record_type optional_return_type
@@ -87,7 +87,9 @@ program:
     {
         std::vector<std::unique_ptr<AstNode>> decls;
         for (auto* item : $2) {
-            decls.emplace_back(item);
+            if (item) {
+                decls.emplace_back(item);
+            }
         }
         driver.set_ast_root(std::make_unique<Program>(std::move(decls), @1));
     }
@@ -101,13 +103,23 @@ top_items:
     top_item
     {
         std::vector<AstNode*> items;
-        items.push_back($1);
+        if ($1) items.push_back($1);
         $$ = std::move(items);
     }
   | top_items seps top_item
     {
-        $1.push_back($3);
+        if ($3) $1.push_back($3);
         $$ = std::move($1);
+    }
+  | top_items seps error sep
+    {
+        yyerrok;
+        $$ = std::move($1);
+    }
+  | error sep
+    {
+        yyerrok;
+        $$ = std::vector<AstNode*>{};
     }
   ;
 
@@ -127,11 +139,11 @@ routine_declaration:
     {
         std::vector<std::unique_ptr<ParameterDeclaration>> param_vec;
         for (auto* p : $4) {
-            param_vec.emplace_back(p);
+            if (p) param_vec.emplace_back(p);
         }
         std::vector<std::unique_ptr<AstNode>> body_vec;
         for (auto* item : $8) {
-            body_vec.emplace_back(item);
+            if (item) body_vec.emplace_back(item);
         }
         $$ = new RoutineDeclaration($2, std::move(param_vec), std::unique_ptr<TypeNode>($6), std::move(body_vec), @1);
     }
@@ -139,7 +151,7 @@ routine_declaration:
     {
         std::vector<std::unique_ptr<ParameterDeclaration>> param_vec;
         for (auto* p : $4) {
-            param_vec.emplace_back(p);
+            if (p) param_vec.emplace_back(p);
         }
         $$ = new RoutineDeclaration($2, std::move(param_vec), std::unique_ptr<TypeNode>($6), std::unique_ptr<Expression>($8), @1);
     }
@@ -147,7 +159,7 @@ routine_declaration:
     {
         std::vector<std::unique_ptr<ParameterDeclaration>> param_vec;
         for (auto* p : $4) {
-            param_vec.emplace_back(p);
+            if (p) param_vec.emplace_back(p);
         }
         $$ = new RoutineDeclaration($2, std::move(param_vec), std::unique_ptr<TypeNode>($6), @1);
     }
@@ -259,7 +271,9 @@ record_type:
     {
         std::vector<std::unique_ptr<VariableDeclaration>> decls;
         for (auto* d : $3) {
-            decls.emplace_back(d);
+            if (d) {
+                decls.emplace_back(d);
+            }
         }
         $$ = new RecordTypeNode(std::move(decls), @1);
     }
@@ -270,16 +284,33 @@ record_type:
   ;
 
 record_fields:
-    variable_declaration
+    record_field
     {
         std::vector<VariableDeclaration*> fields;
-        fields.push_back($1);
+        if ($1) fields.push_back($1);
         $$ = std::move(fields);
     }
-  | record_fields seps variable_declaration
+  | record_fields seps record_field
     {
-        $1.push_back($3);
+        if ($3) $1.push_back($3);
         $$ = std::move($1);
+    }
+  | record_fields seps error sep
+    {
+        yyerrok;
+        $$ = std::move($1);
+    }
+  | error sep
+    {
+        yyerrok;
+        $$ = std::vector<VariableDeclaration*>{};
+    }
+  ;
+
+record_field:
+    variable_declaration
+    {
+        $$ = $1;
     }
   ;
 
@@ -313,13 +344,23 @@ body_items:
     body_item
     {
         std::vector<AstNode*> items;
-        items.push_back($1);
+        if ($1) items.push_back($1);
         $$ = std::move(items);
     }
   | body_items seps body_item
     {
-        $1.push_back($3);
+        if ($3) $1.push_back($3);
         $$ = std::move($1);
+    }
+  | body_items seps error sep
+    {
+        yyerrok;
+        $$ = std::move($1);
+    }
+  | error sep
+    {
+        yyerrok;
+        $$ = std::vector<AstNode*>{};
     }
   ;
 
@@ -359,7 +400,7 @@ statement:
     {
         std::vector<std::unique_ptr<AstNode>> then_body;
         for (auto* n : $4) {
-            then_body.emplace_back(n);
+            if (n) then_body.emplace_back(n);
         }
         $$ = new IfStatement(std::unique_ptr<Expression>($2), std::move(then_body), std::vector<std::unique_ptr<AstNode>>{}, @1);
     }
@@ -367,11 +408,11 @@ statement:
     {
         std::vector<std::unique_ptr<AstNode>> then_body;
         for (auto* n : $4) {
-            then_body.emplace_back(n);
+            if (n) then_body.emplace_back(n);
         }
         std::vector<std::unique_ptr<AstNode>> else_body;
         for (auto* n : $6) {
-            else_body.emplace_back(n);
+            if (n) else_body.emplace_back(n);
         }
         $$ = new IfStatement(std::unique_ptr<Expression>($2), std::move(then_body), std::move(else_body), @1);
     }
@@ -379,7 +420,7 @@ statement:
     {
         std::vector<std::unique_ptr<AstNode>> b;
         for (auto* n : $4) {
-            b.emplace_back(n);
+            if (n) b.emplace_back(n);
         }
         $$ = new WhileStatement(std::unique_ptr<Expression>($2), std::move(b), @1);
     }
@@ -387,7 +428,7 @@ statement:
     {
         std::vector<std::unique_ptr<AstNode>> b;
         for (auto* n : $9) {
-            b.emplace_back(n);
+            if (n) b.emplace_back(n);
         }
         $$ = new ForStatement($2, std::unique_ptr<Expression>($4), std::unique_ptr<Expression>($6), $7, std::move(b), @1);
     }
@@ -395,7 +436,7 @@ statement:
     {
         std::vector<std::unique_ptr<AstNode>> b;
         for (auto* n : $7) {
-            b.emplace_back(n);
+            if (n) b.emplace_back(n);
         }
         $$ = new ForStatement($2, std::unique_ptr<Expression>($4), $5, std::move(b), @1);
     }

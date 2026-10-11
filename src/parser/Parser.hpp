@@ -451,6 +451,7 @@ namespace yy {
       // record_type
       char dummy8[sizeof (TypeNode*)];
 
+      // record_field
       // variable_declaration
       char dummy9[sizeof (VariableDeclaration*)];
 
@@ -681,21 +682,22 @@ namespace yy {
         S_array_type = 71,                       // array_type
         S_record_type = 72,                      // record_type
         S_record_fields = 73,                    // record_fields
-        S_variable_declaration = 74,             // variable_declaration
-        S_body = 75,                             // body
-        S_body_items = 76,                       // body_items
-        S_body_item = 77,                        // body_item
-        S_statement = 78,                        // statement
-        S_optional_reverse = 79,                 // optional_reverse
-        S_modifiable_primary = 80,               // modifiable_primary
-        S_opt_empty_parens = 81,                 // opt_empty_parens
-        S_field_name = 82,                       // field_name
-        S_expression = 83,                       // expression
-        S_argument_list = 84,                    // argument_list
-        S_expression_list = 85,                  // expression_list
-        S_sep = 86,                              // sep
-        S_seps = 87,                             // seps
-        S_opt_seps = 88                          // opt_seps
+        S_record_field = 74,                     // record_field
+        S_variable_declaration = 75,             // variable_declaration
+        S_body = 76,                             // body
+        S_body_items = 77,                       // body_items
+        S_body_item = 78,                        // body_item
+        S_statement = 79,                        // statement
+        S_optional_reverse = 80,                 // optional_reverse
+        S_modifiable_primary = 81,               // modifiable_primary
+        S_opt_empty_parens = 82,                 // opt_empty_parens
+        S_field_name = 83,                       // field_name
+        S_expression = 84,                       // expression
+        S_argument_list = 85,                    // argument_list
+        S_expression_list = 86,                  // expression_list
+        S_sep = 87,                              // sep
+        S_seps = 88,                             // seps
+        S_opt_seps = 89                          // opt_seps
       };
     };
 
@@ -770,6 +772,7 @@ namespace yy {
         value.move< TypeNode* > (std::move (that.value));
         break;
 
+      case symbol_kind::S_record_field: // record_field
       case symbol_kind::S_variable_declaration: // variable_declaration
         value.move< VariableDeclaration* > (std::move (that.value));
         break;
@@ -1134,6 +1137,7 @@ switch (yykind)
         value.template destroy< TypeNode* > ();
         break;
 
+      case symbol_kind::S_record_field: // record_field
       case symbol_kind::S_variable_declaration: // variable_declaration
         value.template destroy< VariableDeclaration* > ();
         break;
@@ -2283,7 +2287,7 @@ switch (yykind)
     /// \param yyvalue   the value to check
     static bool yy_table_value_is_error_ (int yyvalue) YY_NOEXCEPT;
 
-    static const signed char yypact_ninf_;
+    static const short yypact_ninf_;
     static const signed char yytable_ninf_;
 
     /// Convert a scanner token kind \a t to a symbol kind.
@@ -2561,8 +2565,8 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 341,     ///< Last index in yytable_.
-      yynnts_ = 31,  ///< Number of nonterminal symbols.
+      yylast_ = 353,     ///< Last index in yytable_.
+      yynnts_ = 32,  ///< Number of nonterminal symbols.
       yyfinal_ = 7 ///< Termination state number.
     };
 
@@ -2673,6 +2677,7 @@ switch (yykind)
         value.copy< TypeNode* > (YY_MOVE (that.value));
         break;
 
+      case symbol_kind::S_record_field: // record_field
       case symbol_kind::S_variable_declaration: // variable_declaration
         value.copy< VariableDeclaration* > (YY_MOVE (that.value));
         break;
@@ -2783,6 +2788,7 @@ switch (yykind)
         value.move< TypeNode* > (YY_MOVE (s.value));
         break;
 
+      case symbol_kind::S_record_field: // record_field
       case symbol_kind::S_variable_declaration: // variable_declaration
         value.move< VariableDeclaration* > (YY_MOVE (s.value));
         break;
@@ -2891,7 +2897,7 @@ switch (yykind)
 
 #line 6 "src/parser/Parser.yy"
 } // yy
-#line 2895 "src/parser/Parser.hpp"
+#line 2901 "src/parser/Parser.hpp"
 
 
 
