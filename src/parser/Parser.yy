@@ -36,6 +36,28 @@ yy::Parser::symbol_type yylex(ParserDriver& driver);
 void yy::Parser::error(const Location& loc, const std::string& msg) {
     driver.error(loc, msg);
 }
+
+static std::string type_to_string(const TypeNode* node) {
+    if (!node) return "";
+    if (auto* p = dynamic_cast<const PrimitiveTypeNode*>(node)) return p->type_name;
+    if (auto* id = dynamic_cast<const IdentifierTypeNode*>(node)) return id->name;
+    if (auto* arr = dynamic_cast<const ArrayTypeNode*>(node)) {
+        std::string s = "array [";
+        if (arr->size) {
+            if (auto* il = dynamic_cast<const IntLiteral*>(arr->size.get())) {
+                s += std::to_string(il->value);
+            } else if (auto* id = dynamic_cast<const Identifier*>(arr->size.get())) {
+                s += id->name;
+            }
+        }
+        s += "] " + type_to_string(arr->element_type.get());
+        return s;
+    }
+    if (dynamic_cast<const RecordTypeNode*>(node)) {
+        return "record";
+    }
+    return "";
+}
 }
 
 %token <std::string> IDENTIFIER
@@ -64,16 +86,19 @@ void yy::Parser::error(const Location& loc, const std::string& msg) {
 %left MUL DIV MOD
 %precedence UMINUS UPLUS NOT
 
-%nterm <Expression*> expression
+%nterm <Expression*> expression modifiable_primary
 %nterm <std::vector<Expression*>> expression_list argument_list
 %nterm <Statement*> statement
 %nterm <Declaration*> declaration
 %nterm <VariableDeclaration*> variable_declaration
+%nterm <TypeDeclaration*> type_declaration
 %nterm <RoutineDeclaration*> routine_declaration
+%nterm <TypeNode*> type_spec primitive_type array_type record_type
+%nterm <std::vector<VariableDeclaration*>> record_fields
 %nterm <std::vector<AstNode*>> body body_items
 %nterm <AstNode*> body_item
 %nterm <std::vector<std::string>> parameter_list parameters
-%nterm <std::string> parameter type_name optional_return_type
+%nterm <std::string> parameter optional_return_type field_name
 %nterm <bool> optional_reverse
 
 %%
@@ -108,6 +133,14 @@ routine_declaration:
         }
         $$ = new RoutineDeclaration($2, std::move($4), $6, std::move(body_vec), @1);
     }
+  | ROUTINE IDENTIFIER LPAREN parameter_list RPAREN optional_return_type ARROW expression
+    {
+        $$ = new RoutineDeclaration($2, std::move($4), $6, std::unique_ptr<Expression>($8), @1);
+    }
+  | ROUTINE IDENTIFIER LPAREN parameter_list RPAREN optional_return_type
+    {
+        $$ = new RoutineDeclaration($2, std::move($4), $6, @1);
+    }
   ;
 
 parameter_list:
@@ -136,9 +169,10 @@ parameters:
   ;
 
 parameter:
-    IDENTIFIER COLON type_name
+    IDENTIFIER COLON type_spec
     {
-        $$ = $1 + " : " + $3;
+        $$ = $1 + " : " + type_to_string($3);
+        delete $3;
     }
   | IDENTIFIER
     {
@@ -151,9 +185,10 @@ optional_return_type:
     {
         $$ = "";
     }
-  | COLON type_name
+  | COLON type_spec
     {
-        $$ = $2;
+        $$ = type_to_string($2);
+        delete $2;
     }
   ;
 
@@ -162,28 +197,107 @@ declaration:
     {
         $$ = $1;
     }
+  | type_declaration
+    {
+        $$ = $1;
+    }
+  ;
+
+type_declaration:
+    TYPE IDENTIFIER IS type_spec
+    {
+        $$ = new TypeDeclaration($2, std::unique_ptr<TypeNode>($4), @1);
+    }
+  ;
+
+type_spec:
+    primitive_type
+    {
+        $$ = $1;
+    }
+  | IDENTIFIER
+    {
+        $$ = new IdentifierTypeNode($1, @1);
+    }
+  | array_type
+    {
+        $$ = $1;
+    }
+  | record_type
+    {
+        $$ = $1;
+    }
+  ;
+
+primitive_type:
+    KW_INTEGER { $$ = new PrimitiveTypeNode("integer", @1); }
+  | KW_REAL    { $$ = new PrimitiveTypeNode("real", @1); }
+  | KW_BOOLEAN { $$ = new PrimitiveTypeNode("boolean", @1); }
+  ;
+
+array_type:
+    ARRAY LBRACKET expression RBRACKET type_spec
+    {
+        $$ = new ArrayTypeNode(std::unique_ptr<Expression>($3), std::unique_ptr<TypeNode>($5), @1);
+    }
+  | ARRAY LBRACKET RBRACKET type_spec
+    {
+        $$ = new ArrayTypeNode(nullptr, std::unique_ptr<TypeNode>($4), @1);
+    }
+  ;
+
+record_type:
+    RECORD opt_seps record_fields opt_seps END
+    {
+        std::vector<std::unique_ptr<VariableDeclaration>> decls;
+        for (auto* d : $3) {
+            decls.emplace_back(d);
+        }
+        $$ = new RecordTypeNode(std::move(decls), @1);
+    }
+  | RECORD opt_seps END
+    {
+        $$ = new RecordTypeNode({}, @1);
+    }
+  ;
+
+record_fields:
+    variable_declaration
+    {
+        std::vector<VariableDeclaration*> fields;
+        fields.push_back($1);
+        $$ = std::move(fields);
+    }
+  | record_fields seps variable_declaration
+    {
+        $1.push_back($3);
+        $$ = std::move($1);
+    }
   ;
 
 variable_declaration:
-    VAR IDENTIFIER COLON type_name IS expression
+    VAR IDENTIFIER COLON type_spec IS expression
     {
-        $$ = new VariableDeclaration($2, $4, std::unique_ptr<Expression>($6), @1);
+        if (auto* prim = dynamic_cast<PrimitiveTypeNode*>($4)) {
+            $$ = new VariableDeclaration($2, prim->type_name, std::unique_ptr<Expression>($6), @1);
+            delete prim;
+        } else {
+            $$ = new VariableDeclaration($2, std::unique_ptr<TypeNode>($4), std::unique_ptr<Expression>($6), @1);
+        }
     }
-  | VAR IDENTIFIER COLON type_name
+  | VAR IDENTIFIER COLON type_spec
     {
-        $$ = new VariableDeclaration($2, $4, nullptr, @1);
+        if (auto* prim = dynamic_cast<PrimitiveTypeNode*>($4)) {
+            $$ = new VariableDeclaration($2, prim->type_name, nullptr, @1);
+            delete prim;
+        } else {
+            $$ = new VariableDeclaration($2, std::unique_ptr<TypeNode>($4), nullptr, @1);
+        }
     }
   | VAR IDENTIFIER IS expression
     {
         $$ = new VariableDeclaration($2, "", std::unique_ptr<Expression>($4), @1);
     }
-  ;
-
-type_name:
-    KW_INTEGER { $$ = "integer"; }
-  | KW_REAL    { $$ = "real"; }
-  | KW_BOOLEAN { $$ = "boolean"; }
-  | IDENTIFIER { $$ = $1; }
   ;
 
 body:
@@ -223,9 +337,9 @@ body_item:
   ;
 
 statement:
-    IDENTIFIER ASSIGN expression
+    modifiable_primary ASSIGN expression
     {
-        $$ = new AssignStatement($1, std::unique_ptr<Expression>($3), @1);
+        $$ = new AssignStatement(std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
     }
   | IDENTIFIER LPAREN argument_list RPAREN
     {
@@ -300,6 +414,31 @@ optional_reverse:
     }
   ;
 
+modifiable_primary:
+    IDENTIFIER
+    {
+        $$ = new Identifier($1, @1);
+    }
+  | modifiable_primary DOT field_name opt_empty_parens
+    {
+        $$ = new FieldAccessExpr(std::unique_ptr<Expression>($1), $3, @2);
+    }
+  | modifiable_primary LBRACKET expression RBRACKET
+    {
+        $$ = new ElementAccessExpr(std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+    }
+  ;
+
+opt_empty_parens:
+    %empty
+  | LPAREN RPAREN
+  ;
+
+field_name:
+    IDENTIFIER { $$ = $1; }
+  | SIZE       { $$ = "size"; }
+  ;
+
 expression:
     INT_LITERAL
     {
@@ -317,9 +456,9 @@ expression:
     {
         $$ = new BoolLiteral(false, @1);
     }
-  | IDENTIFIER
+  | modifiable_primary
     {
-        $$ = new Identifier($1, @1);
+        $$ = $1;
     }
   | LPAREN expression RPAREN
     {

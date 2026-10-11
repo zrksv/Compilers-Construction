@@ -1,3 +1,6 @@
+#include <iostream>
+#include <cassert>
+#include <vector>
 #include "SourceManager.hpp"
 
 bool SourceManager::is_eof() const {
