@@ -15,14 +15,16 @@ std::string ast_to_string(AstNode* root) {
 
 void write_ast_to_file(const std::string& output_filename, AstNode* root) {
     std::filesystem::path sourcePath(__FILE__);
-    std::filesystem::path outDir = sourcePath.parent_path();
+    std::filesystem::path outDir = sourcePath.parent_path() / "output";
+    std::error_code ec;
+    std::filesystem::create_directories(outDir, ec);
     std::filesystem::path outPath = outDir / output_filename;
 
     std::ofstream outFile(outPath);
     if (outFile.is_open()) {
         AstPrinter filePrinter(outFile);
         root->accept(filePrinter);
-        std::cout << "Successfully written AST to: " << outPath.filename().string() << "\n";
+        std::cout << "Successfully written AST to: output/" << outPath.filename().string() << "\n";
     } else {
         std::cerr << "Failed to open file for writing: " << outPath.string() << "\n";
     }

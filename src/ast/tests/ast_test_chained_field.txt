@@ -1,3 +1,0 @@
-FieldAccess(x)
-└── Object: FieldAccess(center)
-    └── Object: Identifier(circle)

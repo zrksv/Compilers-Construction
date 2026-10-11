@@ -1,5 +1,0 @@
-AssignStatement
-├── Target: ElementAccess
-│   ├── Array: Identifier(arr)
-│   └── Index: Identifier(i)
-└── Value: IntLiteral(42)

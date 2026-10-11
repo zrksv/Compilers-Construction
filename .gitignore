@@ -3,3 +3,4 @@ cmake-build-debug/
 tests/output/
 build/
 .vscode/
+src/ast/tests/output

@@ -1,2 +1,0 @@
-FieldAccess(size)
-└── Object: Identifier(arr)

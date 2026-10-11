@@ -1,5 +1,0 @@
-TypeDeclaration(Circle)
-└── Type: RecordType
-    ├── VariableDeclaration(center)
-    │   └── Type: IdentifierType(Point)
-    └── VariableDeclaration(radius : real)

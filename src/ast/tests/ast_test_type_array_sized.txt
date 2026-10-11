@@ -1,4 +1,0 @@
-TypeDeclaration(SizedArr)
-└── Type: ArrayType
-    ├── Size: IntLiteral(10)
-    └── Element: PrimitiveType(integer)

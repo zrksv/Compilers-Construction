@@ -1,4 +1,0 @@
-TypeDeclaration(Point)
-└── Type: RecordType
-    ├── VariableDeclaration(x : integer)
-    └── VariableDeclaration(y : integer)

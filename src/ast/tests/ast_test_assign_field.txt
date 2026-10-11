@@ -1,4 +1,0 @@
-AssignStatement
-├── Target: FieldAccess(x)
-│   └── Object: Identifier(pt)
-└── Value: IntLiteral(10)

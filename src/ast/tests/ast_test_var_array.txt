@@ -1,4 +1,0 @@
-VariableDeclaration(buffer)
-└── Type: ArrayType
-    ├── Size: IntLiteral(256)
-    └── Element: PrimitiveType(integer)
