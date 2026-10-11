@@ -427,6 +427,7 @@ namespace yy {
       // declaration
       char dummy2[sizeof (Declaration*)];
 
+      // modifiable_primary
       // expression
       char dummy3[sizeof (Expression*)];
 
@@ -436,35 +437,47 @@ namespace yy {
       // statement
       char dummy5[sizeof (Statement*)];
 
+      // type_declaration
+      char dummy6[sizeof (TypeDeclaration*)];
+
+      // type_spec
+      // primitive_type
+      // array_type
+      // record_type
+      char dummy7[sizeof (TypeNode*)];
+
       // variable_declaration
-      char dummy6[sizeof (VariableDeclaration*)];
+      char dummy8[sizeof (VariableDeclaration*)];
 
       // optional_reverse
-      char dummy7[sizeof (bool)];
+      char dummy9[sizeof (bool)];
 
       // REAL_LITERAL
-      char dummy8[sizeof (double)];
+      char dummy10[sizeof (double)];
 
       // INT_LITERAL
-      char dummy9[sizeof (int)];
+      char dummy11[sizeof (int)];
 
       // IDENTIFIER
       // parameter
       // optional_return_type
-      // type_name
-      char dummy10[sizeof (std::string)];
+      // field_name
+      char dummy12[sizeof (std::string)];
 
       // body
       // body_items
-      char dummy11[sizeof (std::vector<AstNode*>)];
+      char dummy13[sizeof (std::vector<AstNode*>)];
 
       // argument_list
       // expression_list
-      char dummy12[sizeof (std::vector<Expression*>)];
+      char dummy14[sizeof (std::vector<Expression*>)];
+
+      // record_fields
+      char dummy15[sizeof (std::vector<VariableDeclaration*>)];
 
       // parameter_list
       // parameters
-      char dummy13[sizeof (std::vector<std::string>)];
+      char dummy16[sizeof (std::vector<std::string>)];
     };
 
     /// The size of the largest semantic type.
@@ -658,19 +671,27 @@ namespace yy {
         S_parameter = 65,                        // parameter
         S_optional_return_type = 66,             // optional_return_type
         S_declaration = 67,                      // declaration
-        S_variable_declaration = 68,             // variable_declaration
-        S_type_name = 69,                        // type_name
-        S_body = 70,                             // body
-        S_body_items = 71,                       // body_items
-        S_body_item = 72,                        // body_item
-        S_statement = 73,                        // statement
-        S_optional_reverse = 74,                 // optional_reverse
-        S_expression = 75,                       // expression
-        S_argument_list = 76,                    // argument_list
-        S_expression_list = 77,                  // expression_list
-        S_sep = 78,                              // sep
-        S_seps = 79,                             // seps
-        S_opt_seps = 80                          // opt_seps
+        S_type_declaration = 68,                 // type_declaration
+        S_type_spec = 69,                        // type_spec
+        S_primitive_type = 70,                   // primitive_type
+        S_array_type = 71,                       // array_type
+        S_record_type = 72,                      // record_type
+        S_record_fields = 73,                    // record_fields
+        S_variable_declaration = 74,             // variable_declaration
+        S_body = 75,                             // body
+        S_body_items = 76,                       // body_items
+        S_body_item = 77,                        // body_item
+        S_statement = 78,                        // statement
+        S_optional_reverse = 79,                 // optional_reverse
+        S_modifiable_primary = 80,               // modifiable_primary
+        S_opt_empty_parens = 81,                 // opt_empty_parens
+        S_field_name = 82,                       // field_name
+        S_expression = 83,                       // expression
+        S_argument_list = 84,                    // argument_list
+        S_expression_list = 85,                  // expression_list
+        S_sep = 86,                              // sep
+        S_seps = 87,                             // seps
+        S_opt_seps = 88                          // opt_seps
       };
     };
 
@@ -715,6 +736,7 @@ namespace yy {
         value.move< Declaration* > (std::move (that.value));
         break;
 
+      case symbol_kind::S_modifiable_primary: // modifiable_primary
       case symbol_kind::S_expression: // expression
         value.move< Expression* > (std::move (that.value));
         break;
@@ -725,6 +747,17 @@ namespace yy {
 
       case symbol_kind::S_statement: // statement
         value.move< Statement* > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_type_declaration: // type_declaration
+        value.move< TypeDeclaration* > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_type_spec: // type_spec
+      case symbol_kind::S_primitive_type: // primitive_type
+      case symbol_kind::S_array_type: // array_type
+      case symbol_kind::S_record_type: // record_type
+        value.move< TypeNode* > (std::move (that.value));
         break;
 
       case symbol_kind::S_variable_declaration: // variable_declaration
@@ -746,7 +779,7 @@ namespace yy {
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
       case symbol_kind::S_parameter: // parameter
       case symbol_kind::S_optional_return_type: // optional_return_type
-      case symbol_kind::S_type_name: // type_name
+      case symbol_kind::S_field_name: // field_name
         value.move< std::string > (std::move (that.value));
         break;
 
@@ -758,6 +791,10 @@ namespace yy {
       case symbol_kind::S_argument_list: // argument_list
       case symbol_kind::S_expression_list: // expression_list
         value.move< std::vector<Expression*> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_record_fields: // record_fields
+        value.move< std::vector<VariableDeclaration*> > (std::move (that.value));
         break;
 
       case symbol_kind::S_parameter_list: // parameter_list
@@ -852,6 +889,34 @@ namespace yy {
       {}
 #else
       basic_symbol (typename Base::kind_type t, const Statement*& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, TypeDeclaration*&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const TypeDeclaration*& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, TypeNode*&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const TypeNode*& v, const location_type& l)
         : Base (t)
         , value (v)
         , location (l)
@@ -957,6 +1022,20 @@ namespace yy {
 #endif
 
 #if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, std::vector<VariableDeclaration*>&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const std::vector<VariableDeclaration*>& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
       basic_symbol (typename Base::kind_type t, std::vector<std::string>&& v, location_type&& l)
         : Base (t)
         , value (std::move (v))
@@ -1002,6 +1081,7 @@ switch (yykind)
         value.template destroy< Declaration* > ();
         break;
 
+      case symbol_kind::S_modifiable_primary: // modifiable_primary
       case symbol_kind::S_expression: // expression
         value.template destroy< Expression* > ();
         break;
@@ -1012,6 +1092,17 @@ switch (yykind)
 
       case symbol_kind::S_statement: // statement
         value.template destroy< Statement* > ();
+        break;
+
+      case symbol_kind::S_type_declaration: // type_declaration
+        value.template destroy< TypeDeclaration* > ();
+        break;
+
+      case symbol_kind::S_type_spec: // type_spec
+      case symbol_kind::S_primitive_type: // primitive_type
+      case symbol_kind::S_array_type: // array_type
+      case symbol_kind::S_record_type: // record_type
+        value.template destroy< TypeNode* > ();
         break;
 
       case symbol_kind::S_variable_declaration: // variable_declaration
@@ -1033,7 +1124,7 @@ switch (yykind)
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
       case symbol_kind::S_parameter: // parameter
       case symbol_kind::S_optional_return_type: // optional_return_type
-      case symbol_kind::S_type_name: // type_name
+      case symbol_kind::S_field_name: // field_name
         value.template destroy< std::string > ();
         break;
 
@@ -1045,6 +1136,10 @@ switch (yykind)
       case symbol_kind::S_argument_list: // argument_list
       case symbol_kind::S_expression_list: // expression_list
         value.template destroy< std::vector<Expression*> > ();
+        break;
+
+      case symbol_kind::S_record_fields: // record_fields
+        value.template destroy< std::vector<VariableDeclaration*> > ();
         break;
 
       case symbol_kind::S_parameter_list: // parameter_list
@@ -2438,8 +2533,8 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 240,     ///< Last index in yytable_.
-      yynnts_ = 23,  ///< Number of nonterminal symbols.
+      yylast_ = 345,     ///< Last index in yytable_.
+      yynnts_ = 31,  ///< Number of nonterminal symbols.
       yyfinal_ = 7 ///< Termination state number.
     };
 
@@ -2520,6 +2615,7 @@ switch (yykind)
         value.copy< Declaration* > (YY_MOVE (that.value));
         break;
 
+      case symbol_kind::S_modifiable_primary: // modifiable_primary
       case symbol_kind::S_expression: // expression
         value.copy< Expression* > (YY_MOVE (that.value));
         break;
@@ -2530,6 +2626,17 @@ switch (yykind)
 
       case symbol_kind::S_statement: // statement
         value.copy< Statement* > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_type_declaration: // type_declaration
+        value.copy< TypeDeclaration* > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_type_spec: // type_spec
+      case symbol_kind::S_primitive_type: // primitive_type
+      case symbol_kind::S_array_type: // array_type
+      case symbol_kind::S_record_type: // record_type
+        value.copy< TypeNode* > (YY_MOVE (that.value));
         break;
 
       case symbol_kind::S_variable_declaration: // variable_declaration
@@ -2551,7 +2658,7 @@ switch (yykind)
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
       case symbol_kind::S_parameter: // parameter
       case symbol_kind::S_optional_return_type: // optional_return_type
-      case symbol_kind::S_type_name: // type_name
+      case symbol_kind::S_field_name: // field_name
         value.copy< std::string > (YY_MOVE (that.value));
         break;
 
@@ -2563,6 +2670,10 @@ switch (yykind)
       case symbol_kind::S_argument_list: // argument_list
       case symbol_kind::S_expression_list: // expression_list
         value.copy< std::vector<Expression*> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_record_fields: // record_fields
+        value.copy< std::vector<VariableDeclaration*> > (YY_MOVE (that.value));
         break;
 
       case symbol_kind::S_parameter_list: // parameter_list
@@ -2609,6 +2720,7 @@ switch (yykind)
         value.move< Declaration* > (YY_MOVE (s.value));
         break;
 
+      case symbol_kind::S_modifiable_primary: // modifiable_primary
       case symbol_kind::S_expression: // expression
         value.move< Expression* > (YY_MOVE (s.value));
         break;
@@ -2619,6 +2731,17 @@ switch (yykind)
 
       case symbol_kind::S_statement: // statement
         value.move< Statement* > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_type_declaration: // type_declaration
+        value.move< TypeDeclaration* > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_type_spec: // type_spec
+      case symbol_kind::S_primitive_type: // primitive_type
+      case symbol_kind::S_array_type: // array_type
+      case symbol_kind::S_record_type: // record_type
+        value.move< TypeNode* > (YY_MOVE (s.value));
         break;
 
       case symbol_kind::S_variable_declaration: // variable_declaration
@@ -2640,7 +2763,7 @@ switch (yykind)
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
       case symbol_kind::S_parameter: // parameter
       case symbol_kind::S_optional_return_type: // optional_return_type
-      case symbol_kind::S_type_name: // type_name
+      case symbol_kind::S_field_name: // field_name
         value.move< std::string > (YY_MOVE (s.value));
         break;
 
@@ -2652,6 +2775,10 @@ switch (yykind)
       case symbol_kind::S_argument_list: // argument_list
       case symbol_kind::S_expression_list: // expression_list
         value.move< std::vector<Expression*> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_record_fields: // record_fields
+        value.move< std::vector<VariableDeclaration*> > (YY_MOVE (s.value));
         break;
 
       case symbol_kind::S_parameter_list: // parameter_list
@@ -2726,7 +2853,7 @@ switch (yykind)
 
 #line 6 "src/parser/Parser.yy"
 } // yy
-#line 2730 "src/parser/Parser.hpp"
+#line 2857 "src/parser/Parser.hpp"
 
 
 

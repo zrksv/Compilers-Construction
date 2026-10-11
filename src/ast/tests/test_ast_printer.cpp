@@ -626,7 +626,6 @@ void test_routine_empty_body() {
 int main() {
     std::cout << "Running Canonical AST Unit Tests with assert()...\n";
     
-    // Tests from Week 1:
     test_math_expression();
     test_if_statement();
     test_routine_declaration();
@@ -635,7 +634,6 @@ int main() {
     test_for_loop();
     test_routine_call();
     
-    // Comprehensive Tests for Week 2:
     test_type_aliases();
     test_array_types();
     test_record_types();
