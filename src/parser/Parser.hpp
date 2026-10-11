@@ -421,6 +421,7 @@ namespace yy {
     /// An auxiliary type to compute the largest semantic type.
     union union_type
     {
+      // top_item
       // body_item
       char dummy1[sizeof (AstNode*)];
 
@@ -431,53 +432,56 @@ namespace yy {
       // expression
       char dummy3[sizeof (Expression*)];
 
+      // parameter
+      char dummy4[sizeof (ParameterDeclaration*)];
+
       // routine_declaration
-      char dummy4[sizeof (RoutineDeclaration*)];
+      char dummy5[sizeof (RoutineDeclaration*)];
 
       // statement
-      char dummy5[sizeof (Statement*)];
+      char dummy6[sizeof (Statement*)];
 
       // type_declaration
-      char dummy6[sizeof (TypeDeclaration*)];
+      char dummy7[sizeof (TypeDeclaration*)];
 
+      // optional_return_type
       // type_spec
       // primitive_type
       // array_type
       // record_type
-      char dummy7[sizeof (TypeNode*)];
+      char dummy8[sizeof (TypeNode*)];
 
       // variable_declaration
-      char dummy8[sizeof (VariableDeclaration*)];
+      char dummy9[sizeof (VariableDeclaration*)];
 
       // optional_reverse
-      char dummy9[sizeof (bool)];
+      char dummy10[sizeof (bool)];
 
       // REAL_LITERAL
-      char dummy10[sizeof (double)];
+      char dummy11[sizeof (double)];
 
       // INT_LITERAL
-      char dummy11[sizeof (int)];
+      char dummy12[sizeof (int)];
 
       // IDENTIFIER
-      // parameter
-      // optional_return_type
       // field_name
-      char dummy12[sizeof (std::string)];
+      char dummy13[sizeof (std::string)];
 
+      // top_items
       // body
       // body_items
-      char dummy13[sizeof (std::vector<AstNode*>)];
+      char dummy14[sizeof (std::vector<AstNode*>)];
 
       // argument_list
       // expression_list
-      char dummy14[sizeof (std::vector<Expression*>)];
-
-      // record_fields
-      char dummy15[sizeof (std::vector<VariableDeclaration*>)];
+      char dummy15[sizeof (std::vector<Expression*>)];
 
       // parameter_list
       // parameters
-      char dummy16[sizeof (std::vector<std::string>)];
+      char dummy16[sizeof (std::vector<ParameterDeclaration*>)];
+
+      // record_fields
+      char dummy17[sizeof (std::vector<VariableDeclaration*>)];
     };
 
     /// The size of the largest semantic type.
@@ -728,6 +732,7 @@ namespace yy {
       {
         switch (this->kind ())
     {
+      case symbol_kind::S_top_item: // top_item
       case symbol_kind::S_body_item: // body_item
         value.move< AstNode* > (std::move (that.value));
         break;
@@ -739,6 +744,10 @@ namespace yy {
       case symbol_kind::S_modifiable_primary: // modifiable_primary
       case symbol_kind::S_expression: // expression
         value.move< Expression* > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_parameter: // parameter
+        value.move< ParameterDeclaration* > (std::move (that.value));
         break;
 
       case symbol_kind::S_routine_declaration: // routine_declaration
@@ -753,6 +762,7 @@ namespace yy {
         value.move< TypeDeclaration* > (std::move (that.value));
         break;
 
+      case symbol_kind::S_optional_return_type: // optional_return_type
       case symbol_kind::S_type_spec: // type_spec
       case symbol_kind::S_primitive_type: // primitive_type
       case symbol_kind::S_array_type: // array_type
@@ -777,12 +787,11 @@ namespace yy {
         break;
 
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
-      case symbol_kind::S_parameter: // parameter
-      case symbol_kind::S_optional_return_type: // optional_return_type
       case symbol_kind::S_field_name: // field_name
         value.move< std::string > (std::move (that.value));
         break;
 
+      case symbol_kind::S_top_items: // top_items
       case symbol_kind::S_body: // body
       case symbol_kind::S_body_items: // body_items
         value.move< std::vector<AstNode*> > (std::move (that.value));
@@ -793,13 +802,13 @@ namespace yy {
         value.move< std::vector<Expression*> > (std::move (that.value));
         break;
 
-      case symbol_kind::S_record_fields: // record_fields
-        value.move< std::vector<VariableDeclaration*> > (std::move (that.value));
-        break;
-
       case symbol_kind::S_parameter_list: // parameter_list
       case symbol_kind::S_parameters: // parameters
-        value.move< std::vector<std::string> > (std::move (that.value));
+        value.move< std::vector<ParameterDeclaration*> > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_record_fields: // record_fields
+        value.move< std::vector<VariableDeclaration*> > (std::move (that.value));
         break;
 
       default:
@@ -861,6 +870,20 @@ namespace yy {
       {}
 #else
       basic_symbol (typename Base::kind_type t, const Expression*& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, ParameterDeclaration*&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const ParameterDeclaration*& v, const location_type& l)
         : Base (t)
         , value (v)
         , location (l)
@@ -1022,13 +1045,13 @@ namespace yy {
 #endif
 
 #if 201103L <= YY_CPLUSPLUS
-      basic_symbol (typename Base::kind_type t, std::vector<VariableDeclaration*>&& v, location_type&& l)
+      basic_symbol (typename Base::kind_type t, std::vector<ParameterDeclaration*>&& v, location_type&& l)
         : Base (t)
         , value (std::move (v))
         , location (std::move (l))
       {}
 #else
-      basic_symbol (typename Base::kind_type t, const std::vector<VariableDeclaration*>& v, const location_type& l)
+      basic_symbol (typename Base::kind_type t, const std::vector<ParameterDeclaration*>& v, const location_type& l)
         : Base (t)
         , value (v)
         , location (l)
@@ -1036,13 +1059,13 @@ namespace yy {
 #endif
 
 #if 201103L <= YY_CPLUSPLUS
-      basic_symbol (typename Base::kind_type t, std::vector<std::string>&& v, location_type&& l)
+      basic_symbol (typename Base::kind_type t, std::vector<VariableDeclaration*>&& v, location_type&& l)
         : Base (t)
         , value (std::move (v))
         , location (std::move (l))
       {}
 #else
-      basic_symbol (typename Base::kind_type t, const std::vector<std::string>& v, const location_type& l)
+      basic_symbol (typename Base::kind_type t, const std::vector<VariableDeclaration*>& v, const location_type& l)
         : Base (t)
         , value (v)
         , location (l)
@@ -1073,6 +1096,7 @@ namespace yy {
         // Value type destructor.
 switch (yykind)
     {
+      case symbol_kind::S_top_item: // top_item
       case symbol_kind::S_body_item: // body_item
         value.template destroy< AstNode* > ();
         break;
@@ -1084,6 +1108,10 @@ switch (yykind)
       case symbol_kind::S_modifiable_primary: // modifiable_primary
       case symbol_kind::S_expression: // expression
         value.template destroy< Expression* > ();
+        break;
+
+      case symbol_kind::S_parameter: // parameter
+        value.template destroy< ParameterDeclaration* > ();
         break;
 
       case symbol_kind::S_routine_declaration: // routine_declaration
@@ -1098,6 +1126,7 @@ switch (yykind)
         value.template destroy< TypeDeclaration* > ();
         break;
 
+      case symbol_kind::S_optional_return_type: // optional_return_type
       case symbol_kind::S_type_spec: // type_spec
       case symbol_kind::S_primitive_type: // primitive_type
       case symbol_kind::S_array_type: // array_type
@@ -1122,12 +1151,11 @@ switch (yykind)
         break;
 
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
-      case symbol_kind::S_parameter: // parameter
-      case symbol_kind::S_optional_return_type: // optional_return_type
       case symbol_kind::S_field_name: // field_name
         value.template destroy< std::string > ();
         break;
 
+      case symbol_kind::S_top_items: // top_items
       case symbol_kind::S_body: // body
       case symbol_kind::S_body_items: // body_items
         value.template destroy< std::vector<AstNode*> > ();
@@ -1138,13 +1166,13 @@ switch (yykind)
         value.template destroy< std::vector<Expression*> > ();
         break;
 
-      case symbol_kind::S_record_fields: // record_fields
-        value.template destroy< std::vector<VariableDeclaration*> > ();
-        break;
-
       case symbol_kind::S_parameter_list: // parameter_list
       case symbol_kind::S_parameters: // parameters
-        value.template destroy< std::vector<std::string> > ();
+        value.template destroy< std::vector<ParameterDeclaration*> > ();
+        break;
+
+      case symbol_kind::S_record_fields: // record_fields
+        value.template destroy< std::vector<VariableDeclaration*> > ();
         break;
 
       default:
@@ -2281,7 +2309,7 @@ switch (yykind)
     static const signed char yydefact_[];
 
     // YYPGOTO[NTERM-NUM].
-    static const signed char yypgoto_[];
+    static const short yypgoto_[];
 
     // YYDEFGOTO[NTERM-NUM].
     static const unsigned char yydefgoto_[];
@@ -2533,7 +2561,7 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 345,     ///< Last index in yytable_.
+      yylast_ = 341,     ///< Last index in yytable_.
       yynnts_ = 31,  ///< Number of nonterminal symbols.
       yyfinal_ = 7 ///< Termination state number.
     };
@@ -2607,6 +2635,7 @@ switch (yykind)
   {
     switch (this->kind ())
     {
+      case symbol_kind::S_top_item: // top_item
       case symbol_kind::S_body_item: // body_item
         value.copy< AstNode* > (YY_MOVE (that.value));
         break;
@@ -2618,6 +2647,10 @@ switch (yykind)
       case symbol_kind::S_modifiable_primary: // modifiable_primary
       case symbol_kind::S_expression: // expression
         value.copy< Expression* > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_parameter: // parameter
+        value.copy< ParameterDeclaration* > (YY_MOVE (that.value));
         break;
 
       case symbol_kind::S_routine_declaration: // routine_declaration
@@ -2632,6 +2665,7 @@ switch (yykind)
         value.copy< TypeDeclaration* > (YY_MOVE (that.value));
         break;
 
+      case symbol_kind::S_optional_return_type: // optional_return_type
       case symbol_kind::S_type_spec: // type_spec
       case symbol_kind::S_primitive_type: // primitive_type
       case symbol_kind::S_array_type: // array_type
@@ -2656,12 +2690,11 @@ switch (yykind)
         break;
 
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
-      case symbol_kind::S_parameter: // parameter
-      case symbol_kind::S_optional_return_type: // optional_return_type
       case symbol_kind::S_field_name: // field_name
         value.copy< std::string > (YY_MOVE (that.value));
         break;
 
+      case symbol_kind::S_top_items: // top_items
       case symbol_kind::S_body: // body
       case symbol_kind::S_body_items: // body_items
         value.copy< std::vector<AstNode*> > (YY_MOVE (that.value));
@@ -2672,13 +2705,13 @@ switch (yykind)
         value.copy< std::vector<Expression*> > (YY_MOVE (that.value));
         break;
 
-      case symbol_kind::S_record_fields: // record_fields
-        value.copy< std::vector<VariableDeclaration*> > (YY_MOVE (that.value));
-        break;
-
       case symbol_kind::S_parameter_list: // parameter_list
       case symbol_kind::S_parameters: // parameters
-        value.copy< std::vector<std::string> > (YY_MOVE (that.value));
+        value.copy< std::vector<ParameterDeclaration*> > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_record_fields: // record_fields
+        value.copy< std::vector<VariableDeclaration*> > (YY_MOVE (that.value));
         break;
 
       default:
@@ -2712,6 +2745,7 @@ switch (yykind)
     super_type::move (s);
     switch (this->kind ())
     {
+      case symbol_kind::S_top_item: // top_item
       case symbol_kind::S_body_item: // body_item
         value.move< AstNode* > (YY_MOVE (s.value));
         break;
@@ -2723,6 +2757,10 @@ switch (yykind)
       case symbol_kind::S_modifiable_primary: // modifiable_primary
       case symbol_kind::S_expression: // expression
         value.move< Expression* > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_parameter: // parameter
+        value.move< ParameterDeclaration* > (YY_MOVE (s.value));
         break;
 
       case symbol_kind::S_routine_declaration: // routine_declaration
@@ -2737,6 +2775,7 @@ switch (yykind)
         value.move< TypeDeclaration* > (YY_MOVE (s.value));
         break;
 
+      case symbol_kind::S_optional_return_type: // optional_return_type
       case symbol_kind::S_type_spec: // type_spec
       case symbol_kind::S_primitive_type: // primitive_type
       case symbol_kind::S_array_type: // array_type
@@ -2761,12 +2800,11 @@ switch (yykind)
         break;
 
       case symbol_kind::S_IDENTIFIER: // IDENTIFIER
-      case symbol_kind::S_parameter: // parameter
-      case symbol_kind::S_optional_return_type: // optional_return_type
       case symbol_kind::S_field_name: // field_name
         value.move< std::string > (YY_MOVE (s.value));
         break;
 
+      case symbol_kind::S_top_items: // top_items
       case symbol_kind::S_body: // body
       case symbol_kind::S_body_items: // body_items
         value.move< std::vector<AstNode*> > (YY_MOVE (s.value));
@@ -2777,13 +2815,13 @@ switch (yykind)
         value.move< std::vector<Expression*> > (YY_MOVE (s.value));
         break;
 
-      case symbol_kind::S_record_fields: // record_fields
-        value.move< std::vector<VariableDeclaration*> > (YY_MOVE (s.value));
-        break;
-
       case symbol_kind::S_parameter_list: // parameter_list
       case symbol_kind::S_parameters: // parameters
-        value.move< std::vector<std::string> > (YY_MOVE (s.value));
+        value.move< std::vector<ParameterDeclaration*> > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_record_fields: // record_fields
+        value.move< std::vector<VariableDeclaration*> > (YY_MOVE (s.value));
         break;
 
       default:
@@ -2853,7 +2891,7 @@ switch (yykind)
 
 #line 6 "src/parser/Parser.yy"
 } // yy
-#line 2857 "src/parser/Parser.hpp"
+#line 2895 "src/parser/Parser.hpp"
 
 
 

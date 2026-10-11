@@ -36,7 +36,11 @@ void test_operator_precedence() {
     assert(ok && "Parsing failed for operator precedence");
     assert(driver.get_ast() != nullptr);
 
-    auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1);
+
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
     assert(routine != nullptr);
     assert(routine->name == "main");
     assert(routine->body.size() == 1);
@@ -80,7 +84,11 @@ void test_if_else() {
     bool ok = driver.parse(code);
     assert(ok);
 
-    auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1);
+
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
     assert(routine != nullptr);
     assert(routine->body.size() == 1);
 
@@ -105,7 +113,11 @@ void test_loops() {
     bool ok = driver.parse(code);
     assert(ok);
 
-    auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1);
+
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
     assert(routine != nullptr);
     assert(routine->body.size() == 2);
 
@@ -140,7 +152,11 @@ void test_sample_01() {
     bool ok = parse_sample_helper(driver, "tests/samples/01_print.imp");
     assert(ok);
 
-    auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1);
+
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
     assert(routine != nullptr);
     assert(routine->name == "main");
     assert(routine->body.size() == 1);
@@ -157,7 +173,11 @@ void test_sample_08() {
     bool ok = parse_sample_helper(driver, "tests/samples/08_for_loop.imp");
     assert(ok && "Failed to parse 08_for_loop.imp");
 
-    auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1);
+
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
     assert(routine != nullptr);
     assert(routine->name == "main");
     assert(routine->body.size() == 4);
@@ -172,7 +192,9 @@ void test_type_declarations() {
         ParserDriver driver;
         bool ok = driver.parse(code);
         assert(ok);
-        auto* decl = dynamic_cast<TypeDeclaration*>(driver.get_ast());
+        auto* prog = dynamic_cast<Program*>(driver.get_ast());
+        assert(prog != nullptr && prog->declarations.size() == 1);
+        auto* decl = dynamic_cast<TypeDeclaration*>(prog->declarations[0].get());
         assert(decl != nullptr);
         assert(decl->name == "IntAlias");
         auto* prim = dynamic_cast<PrimitiveTypeNode*>(decl->type.get());
@@ -186,7 +208,9 @@ void test_type_declarations() {
         ParserDriver driver;
         bool ok = driver.parse(code);
         assert(ok);
-        auto* decl = dynamic_cast<TypeDeclaration*>(driver.get_ast());
+        auto* prog = dynamic_cast<Program*>(driver.get_ast());
+        assert(prog != nullptr && prog->declarations.size() == 1);
+        auto* decl = dynamic_cast<TypeDeclaration*>(prog->declarations[0].get());
         assert(decl != nullptr);
         assert(decl->name == "MyType");
         auto* idNode = dynamic_cast<IdentifierTypeNode*>(decl->type.get());
@@ -200,7 +224,9 @@ void test_type_declarations() {
         ParserDriver driver;
         bool ok = driver.parse(code);
         assert(ok);
-        auto* decl = dynamic_cast<TypeDeclaration*>(driver.get_ast());
+        auto* prog = dynamic_cast<Program*>(driver.get_ast());
+        assert(prog != nullptr && prog->declarations.size() == 1);
+        auto* decl = dynamic_cast<TypeDeclaration*>(prog->declarations[0].get());
         assert(decl != nullptr);
         assert(decl->name == "SizedArr");
         auto* arrNode = dynamic_cast<ArrayTypeNode*>(decl->type.get());
@@ -218,7 +244,9 @@ void test_type_declarations() {
         ParserDriver driver;
         bool ok = driver.parse(code);
         assert(ok);
-        auto* decl = dynamic_cast<TypeDeclaration*>(driver.get_ast());
+        auto* prog = dynamic_cast<Program*>(driver.get_ast());
+        assert(prog != nullptr && prog->declarations.size() == 1);
+        auto* decl = dynamic_cast<TypeDeclaration*>(prog->declarations[0].get());
         assert(decl != nullptr);
         assert(decl->name == "UnsizedArr");
         auto* arrNode = dynamic_cast<ArrayTypeNode*>(decl->type.get());
@@ -237,7 +265,9 @@ void test_type_declarations() {
         ParserDriver driver;
         bool ok = driver.parse(code);
         assert(ok);
-        auto* decl = dynamic_cast<TypeDeclaration*>(driver.get_ast());
+        auto* prog = dynamic_cast<Program*>(driver.get_ast());
+        assert(prog != nullptr && prog->declarations.size() == 1);
+        auto* decl = dynamic_cast<TypeDeclaration*>(prog->declarations[0].get());
         assert(decl != nullptr);
         assert(decl->name == "Point");
         auto* recNode = dynamic_cast<RecordTypeNode*>(decl->type.get());
@@ -264,7 +294,9 @@ void test_member_access() {
     bool ok = driver.parse(code);
     assert(ok && "Parsing member access failed");
 
-    auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 1);
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
     assert(routine != nullptr);
     assert(routine->body.size() == 7);
 
@@ -324,7 +356,9 @@ void test_assignments_to_modifiable_primary() {
     bool ok = driver.parse(code);
     assert(ok && "Parsing assignments failed");
 
-    auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 1);
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
     assert(routine != nullptr);
     assert(routine->body.size() == 5);
 
@@ -358,12 +392,22 @@ void test_routine_variations() {
         ParserDriver driver;
         bool ok = driver.parse(code);
         assert(ok);
-        auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+        auto* prog = dynamic_cast<Program*>(driver.get_ast());
+        assert(prog != nullptr && prog->declarations.size() == 1);
+        auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
         assert(routine != nullptr);
         assert(routine->name == "gcd");
         assert(routine->body_type == RoutineBodyType::Forward);
         assert(routine->parameters.size() == 2);
-        assert(routine->return_type == "integer");
+        assert(routine->parameters[0]->name == "a");
+        assert(dynamic_cast<PrimitiveTypeNode*>(routine->parameters[0]->type.get()) != nullptr);
+        assert(dynamic_cast<PrimitiveTypeNode*>(routine->parameters[0]->type.get())->type_name == "integer");
+        assert(routine->parameters[1]->name == "b");
+        assert(dynamic_cast<PrimitiveTypeNode*>(routine->parameters[1]->type.get()) != nullptr);
+        assert(dynamic_cast<PrimitiveTypeNode*>(routine->parameters[1]->type.get())->type_name == "integer");
+        assert(routine->return_type != nullptr);
+        auto* retPrim = dynamic_cast<PrimitiveTypeNode*>(routine->return_type.get());
+        assert(retPrim != nullptr && retPrim->type_name == "integer");
     }
 
     // Arrow body
@@ -372,11 +416,18 @@ void test_routine_variations() {
         ParserDriver driver;
         bool ok = driver.parse(code);
         assert(ok);
-        auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+        auto* prog = dynamic_cast<Program*>(driver.get_ast());
+        assert(prog != nullptr && prog->declarations.size() == 1);
+        auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
         assert(routine != nullptr);
         assert(routine->name == "square");
         assert(routine->body_type == RoutineBodyType::Expression);
         assert(routine->expression_body != nullptr);
+        assert(routine->parameters.size() == 1);
+        assert(routine->parameters[0]->name == "x");
+        assert(routine->return_type != nullptr);
+        auto* retPrim = dynamic_cast<PrimitiveTypeNode*>(routine->return_type.get());
+        assert(retPrim != nullptr && retPrim->type_name == "integer");
     }
 
     // Routine with array parameter
@@ -387,10 +438,18 @@ void test_routine_variations() {
         ParserDriver driver;
         bool ok = driver.parse(code);
         assert(ok);
-        auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+        auto* prog = dynamic_cast<Program*>(driver.get_ast());
+        assert(prog != nullptr && prog->declarations.size() == 1);
+        auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
         assert(routine != nullptr);
         assert(routine->parameters.size() == 1);
-        assert(routine->parameters[0] == "arr : array [] integer");
+        assert(routine->parameters[0]->name == "arr");
+        auto* arrType = dynamic_cast<ArrayTypeNode*>(routine->parameters[0]->type.get());
+        assert(arrType != nullptr);
+        assert(arrType->size == nullptr);
+        auto* elemPrim = dynamic_cast<PrimitiveTypeNode*>(arrType->element_type.get());
+        assert(elemPrim != nullptr && elemPrim->type_name == "integer");
+        assert(routine->return_type != nullptr);
     }
 
     // Empty routine
@@ -399,14 +458,61 @@ void test_routine_variations() {
         ParserDriver driver;
         bool ok = driver.parse(code);
         assert(ok);
-        auto* routine = dynamic_cast<RoutineDeclaration*>(driver.get_ast());
+        auto* prog = dynamic_cast<Program*>(driver.get_ast());
+        assert(prog != nullptr && prog->declarations.size() == 1);
+        auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
         assert(routine != nullptr);
         assert(routine->name == "noop");
         assert(routine->body_type == RoutineBodyType::Block);
         assert(routine->body.empty());
+        assert(routine->parameters.empty());
+        assert(routine->return_type == nullptr);
     }
 
     std::cout << "[PASS] test_routine_variations (forward, arrow, array param, empty)\n";
+}
+
+void test_program_multiple_declarations() {
+    std::string code = "type IntArray is array [3] integer;\n"
+                       "routine get_first(arr : IntArray) : integer is\n"
+                       "    return arr[1];\n"
+                       "end\n"
+                       "routine main() is\n"
+                       "    var a : IntArray;\n"
+                       "    print get_first(a);\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(ok);
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 3);
+    assert(dynamic_cast<TypeDeclaration*>(prog->declarations[0].get()) != nullptr);
+    assert(dynamic_cast<RoutineDeclaration*>(prog->declarations[1].get()) != nullptr);
+    assert(dynamic_cast<RoutineDeclaration*>(prog->declarations[2].get()) != nullptr);
+    std::cout << "[PASS] test_program_multiple_declarations\n";
+}
+
+void test_for_loop_array() {
+    std::string code = "routine test_arr_for() is\n"
+                       "    for item in items reverse loop\n"
+                       "        print item;\n"
+                       "    end\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(ok);
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 1);
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(routine != nullptr && routine->body.size() == 1);
+    auto* forStmt = dynamic_cast<ForStatement*>(routine->body[0].get());
+    assert(forStmt != nullptr);
+    assert(forStmt->iterator_name == "item");
+    assert(forStmt->is_reverse == true);
+    assert(forStmt->range_start != nullptr);
+    assert(forStmt->range_end == nullptr);
+    std::cout << "[PASS] test_for_loop_array\n";
 }
 
 void test_sample_10_forward() {
@@ -454,6 +560,8 @@ int main() {
     test_member_access();
     test_assignments_to_modifiable_primary();
     test_routine_variations();
+    test_program_multiple_declarations();
+    test_for_loop_array();
     test_sample_10_forward();
     test_sample_16_records();
     test_sample_18_arrow();
