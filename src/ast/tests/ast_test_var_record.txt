@@ -1,0 +1,2 @@
+VariableDeclaration(pt)
+└── Type: IdentifierType(Point)

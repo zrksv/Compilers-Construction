@@ -1,0 +1,2 @@
+TypeDeclaration(MyType)
+└── Type: IdentifierType(IntAlias)

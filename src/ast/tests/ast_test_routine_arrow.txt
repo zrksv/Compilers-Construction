@@ -1,0 +1,4 @@
+RoutineDeclaration(square) params: [x : integer] returns: integer
+└── ExprBody: BinaryExpr(*)
+    ├── Left: Identifier(x)
+    └── Right: Identifier(x)

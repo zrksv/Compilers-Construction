@@ -1,0 +1,2 @@
+TypeDeclaration(IntAlias)
+└── Type: PrimitiveType(integer)

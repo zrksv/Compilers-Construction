@@ -1,0 +1,3 @@
+ElementAccess
+├── Array: Identifier(arr)
+└── Index: Identifier(i)

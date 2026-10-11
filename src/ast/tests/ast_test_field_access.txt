@@ -1,0 +1,2 @@
+FieldAccess(x)
+└── Object: Identifier(pt)

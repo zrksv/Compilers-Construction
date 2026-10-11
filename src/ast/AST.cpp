@@ -17,3 +17,10 @@ void ForStatement::accept(AstPrinter& printer) { printer.visit(*this); }
 void ReturnStatement::accept(AstPrinter& printer) { printer.visit(*this); }
 void VariableDeclaration::accept(AstPrinter& printer) { printer.visit(*this); }
 void RoutineDeclaration::accept(AstPrinter& printer) { printer.visit(*this); }
+void PrimitiveTypeNode::accept(AstPrinter& printer) { printer.visit(*this); }
+void IdentifierTypeNode::accept(AstPrinter& printer) { printer.visit(*this); }
+void ArrayTypeNode::accept(AstPrinter& printer) { printer.visit(*this); }
+void RecordTypeNode::accept(AstPrinter& printer) { printer.visit(*this); }
+void FieldAccessExpr::accept(AstPrinter& printer) { printer.visit(*this); }
+void ElementAccessExpr::accept(AstPrinter& printer) { printer.visit(*this); }
+void TypeDeclaration::accept(AstPrinter& printer) { printer.visit(*this); }

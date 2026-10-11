@@ -87,7 +87,18 @@ void AstPrinter::visit(RoutineCallExpr& node) {
 }
 
 void AstPrinter::visit(AssignStatement& node) {
-    out << "AssignStatement(" << node.name << ")\n";
+    if (auto* id = dynamic_cast<Identifier*>(node.target.get())) {
+        out << "AssignStatement(" << id->name << ")\n";
+    } else {
+        out << "AssignStatement\n";
+        print_indent(false);
+        out << "Target: ";
+        is_last.push_back(false);
+        node.target->accept(*this);
+        out << "\n";
+        is_last.pop_back();
+    }
+
     print_indent(true);
     out << "Value: ";
     is_last.push_back(true);
@@ -238,8 +249,22 @@ void AstPrinter::visit(VariableDeclaration& node) {
     out << "VariableDeclaration(" << node.name;
     if (!node.type.empty()) out << " : " << node.type;
     out << ")";
-    if (node.expression) {
+
+    if (node.type_node || node.expression) {
         out << "\n";
+    }
+
+    if (node.type_node) {
+        bool last = !node.expression;
+        print_indent(last);
+        out << "Type: ";
+        is_last.push_back(last);
+        node.type_node->accept(*this);
+        if (!last) out << "\n";
+        is_last.pop_back();
+    }
+
+    if (node.expression) {
         print_indent(true);
         out << "Init: ";
         is_last.push_back(true);
@@ -259,7 +284,16 @@ void AstPrinter::visit(RoutineDeclaration& node) {
     }
     if (!node.return_type.empty()) out << " returns: " << node.return_type;
     
-    if (!node.body.empty()) {
+    if (node.body_type == RoutineBodyType::Forward) {
+        out << " (forward)";
+    } else if (node.body_type == RoutineBodyType::Expression) {
+        out << "\n";
+        print_indent(true);
+        out << "ExprBody: ";
+        is_last.push_back(true);
+        node.expression_body->accept(*this);
+        is_last.pop_back();
+    } else if (node.body_type == RoutineBodyType::Block && !node.body.empty()) {
         out << "\n";
         print_indent(true);
         out << "Body:\n";
@@ -274,4 +308,82 @@ void AstPrinter::visit(RoutineDeclaration& node) {
         }
         is_last.pop_back();
     }
+}
+
+void AstPrinter::visit(PrimitiveTypeNode& node) {
+    out << "PrimitiveType(" << node.type_name << ")";
+}
+
+void AstPrinter::visit(IdentifierTypeNode& node) {
+    out << "IdentifierType(" << node.name << ")";
+}
+
+void AstPrinter::visit(ArrayTypeNode& node) {
+    out << "ArrayType\n";
+
+    print_indent(false);
+    out << "Size: ";
+    is_last.push_back(false);
+    if (node.size) {
+        node.size->accept(*this);
+    } else {
+        out << "empty";
+    }
+    out << "\n";
+    is_last.pop_back();
+
+    print_indent(true);
+    out << "Element: ";
+    is_last.push_back(true);
+    node.element_type->accept(*this);
+    is_last.pop_back();
+}
+
+void AstPrinter::visit(RecordTypeNode& node) {
+    out << "RecordType";
+    if (node.declarations.empty()) return;
+    out << "\n";
+    for (size_t i = 0; i < node.declarations.size(); ++i) {
+        bool last = (i == node.declarations.size() - 1);
+        print_indent(last);
+        is_last.push_back(last);
+        node.declarations[i]->accept(*this);
+        if (!last) out << "\n";
+        is_last.pop_back();
+    }
+}
+
+void AstPrinter::visit(FieldAccessExpr& node) {
+    out << "FieldAccess(" << node.field_name << ")\n";
+    print_indent(true);
+    out << "Object: ";
+    is_last.push_back(true);
+    node.object->accept(*this);
+    is_last.pop_back();
+}
+
+void AstPrinter::visit(ElementAccessExpr& node) {
+    out << "ElementAccess\n";
+
+    print_indent(false);
+    out << "Array: ";
+    is_last.push_back(false);
+    node.array->accept(*this);
+    out << "\n";
+    is_last.pop_back();
+
+    print_indent(true);
+    out << "Index: ";
+    is_last.push_back(true);
+    node.index->accept(*this);
+    is_last.pop_back();
+}
+
+void AstPrinter::visit(TypeDeclaration& node) {
+    out << "TypeDeclaration(" << node.name << ")\n";
+    print_indent(true);
+    out << "Type: ";
+    is_last.push_back(true);
+    node.type->accept(*this);
+    is_last.pop_back();
 }

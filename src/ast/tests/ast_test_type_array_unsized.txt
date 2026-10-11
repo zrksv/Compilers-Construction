@@ -1,0 +1,4 @@
+TypeDeclaration(UnsizedArr)
+└── Type: ArrayType
+    ├── Size: empty
+    └── Element: PrimitiveType(real)

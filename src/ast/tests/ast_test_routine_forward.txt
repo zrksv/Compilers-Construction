@@ -1,0 +1,1 @@
+RoutineDeclaration(gcd) params: [a : integer, b : integer] returns: integer (forward)

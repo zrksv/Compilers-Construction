@@ -1,0 +1,5 @@
+ElementAccess
+├── Array: ElementAccess
+│   ├── Array: Identifier(matrix)
+│   └── Index: Identifier(i)
+└── Index: Identifier(j)
