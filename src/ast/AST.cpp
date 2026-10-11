@@ -24,3 +24,5 @@ void RecordTypeNode::accept(AstPrinter& printer) { printer.visit(*this); }
 void FieldAccessExpr::accept(AstPrinter& printer) { printer.visit(*this); }
 void ElementAccessExpr::accept(AstPrinter& printer) { printer.visit(*this); }
 void TypeDeclaration::accept(AstPrinter& printer) { printer.visit(*this); }
+void ParameterDeclaration::accept(AstPrinter& printer) { printer.visit(*this); }
+void Program::accept(AstPrinter& printer) { printer.visit(*this); }

@@ -204,19 +204,28 @@ void AstPrinter::visit(WhileStatement& node) {
 void AstPrinter::visit(ForStatement& node) {
     out << "ForLoop(" << node.iterator_name << (node.is_reverse ? " reverse" : "") << ")\n";
     
-    print_indent(false);
-    out << "Start: ";
-    is_last.push_back(false);
-    node.range_start->accept(*this);
-    out << "\n";
-    is_last.pop_back();
+    if (node.range_end) {
+        print_indent(false);
+        out << "Start: ";
+        is_last.push_back(false);
+        node.range_start->accept(*this);
+        out << "\n";
+        is_last.pop_back();
 
-    print_indent(false);
-    out << "End: ";
-    is_last.push_back(false);
-    node.range_end->accept(*this);
-    out << "\n";
-    is_last.pop_back();
+        print_indent(false);
+        out << "End: ";
+        is_last.push_back(false);
+        node.range_end->accept(*this);
+        out << "\n";
+        is_last.pop_back();
+    } else {
+        print_indent(false);
+        out << "Array: ";
+        is_last.push_back(false);
+        node.range_start->accept(*this);
+        out << "\n";
+        is_last.pop_back();
+    }
     
     print_indent(true);
     out << "Body:\n";
@@ -247,19 +256,22 @@ void AstPrinter::visit(ReturnStatement& node) {
 
 void AstPrinter::visit(VariableDeclaration& node) {
     out << "VariableDeclaration(" << node.name;
-    if (!node.type.empty()) out << " : " << node.type;
+    if (auto* prim = dynamic_cast<PrimitiveTypeNode*>(node.type.get())) {
+        out << " : " << prim->type_name;
+    }
     out << ")";
 
-    if (node.type_node || node.expression) {
+    bool has_complex_type = (node.type != nullptr && dynamic_cast<PrimitiveTypeNode*>(node.type.get()) == nullptr);
+    if (has_complex_type || node.expression) {
         out << "\n";
     }
 
-    if (node.type_node) {
+    if (has_complex_type) {
         bool last = !node.expression;
         print_indent(last);
         out << "Type: ";
         is_last.push_back(last);
-        node.type_node->accept(*this);
+        node.type->accept(*this);
         if (!last) out << "\n";
         is_last.pop_back();
     }
@@ -278,11 +290,29 @@ void AstPrinter::visit(RoutineDeclaration& node) {
     if (!node.parameters.empty()) {
         out << " params: [";
         for (size_t i = 0; i < node.parameters.size(); ++i) {
-            out << node.parameters[i] << (i + 1 == node.parameters.size() ? "" : ", ");
+            auto& p = node.parameters[i];
+            out << p->name;
+            if (p->type) {
+                if (auto* prim = dynamic_cast<PrimitiveTypeNode*>(p->type.get())) {
+                    out << " : " << prim->type_name;
+                } else if (auto* id = dynamic_cast<IdentifierTypeNode*>(p->type.get())) {
+                    out << " : " << id->name;
+                }
+            }
+            if (i + 1 < node.parameters.size()) {
+                out << ", ";
+            }
         }
         out << "]";
     }
-    if (!node.return_type.empty()) out << " returns: " << node.return_type;
+    if (node.return_type) {
+        out << " returns: ";
+        if (auto* prim = dynamic_cast<PrimitiveTypeNode*>(node.return_type.get())) {
+            out << prim->type_name;
+        } else if (auto* id = dynamic_cast<IdentifierTypeNode*>(node.return_type.get())) {
+            out << id->name;
+        }
+    }
     
     if (node.body_type == RoutineBodyType::Forward) {
         out << " (forward)";
@@ -386,4 +416,38 @@ void AstPrinter::visit(TypeDeclaration& node) {
     is_last.push_back(true);
     node.type->accept(*this);
     is_last.pop_back();
+}
+
+void AstPrinter::visit(Program& node) {
+    out << "Program";
+    if (node.declarations.empty()) return;
+    out << "\n";
+    for (size_t i = 0; i < node.declarations.size(); ++i) {
+        bool last = (i == node.declarations.size() - 1);
+        print_indent(last);
+        is_last.push_back(last);
+        node.declarations[i]->accept(*this);
+        if (!last) out << "\n";
+        is_last.pop_back();
+    }
+}
+
+void AstPrinter::visit(ParameterDeclaration& node) {
+    out << "ParameterDeclaration(" << node.name;
+    if (node.type) {
+        if (auto* prim = dynamic_cast<PrimitiveTypeNode*>(node.type.get())) {
+            out << " : " << prim->type_name;
+        } else if (auto* id = dynamic_cast<IdentifierTypeNode*>(node.type.get())) {
+            out << " : " << id->name;
+        }
+    }
+    out << ")";
+    if (node.type && !dynamic_cast<PrimitiveTypeNode*>(node.type.get()) && !dynamic_cast<IdentifierTypeNode*>(node.type.get())) {
+        out << "\n";
+        print_indent(true);
+        out << "Type: ";
+        is_last.push_back(true);
+        node.type->accept(*this);
+        is_last.pop_back();
+    }
 }

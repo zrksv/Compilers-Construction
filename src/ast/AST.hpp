@@ -20,6 +20,18 @@ class Statement : public AstNode {};
 class Declaration : public AstNode {};
 class TypeNode : public AstNode {};
 
+class Program : public AstNode {
+public:
+    std::vector<std::unique_ptr<AstNode>> declarations;
+
+    Program(std::vector<std::unique_ptr<AstNode>> decls, Location loc)
+        : declarations(std::move(decls)) {
+        this->location = loc;
+    }
+
+    void accept(AstPrinter& printer) override;
+};
+
 // ============================================================================
 // Expressions
 // ============================================================================
@@ -238,6 +250,17 @@ public:
         this->location = loc;
     }
 
+    // For loop iterating over an array (range_end is nullptr)
+    ForStatement(std::string iter,
+                 std::unique_ptr<Expression> array_expr,
+                 bool rev,
+                 std::vector<std::unique_ptr<AstNode>> b,
+                 Location loc)
+        : iterator_name(std::move(iter)), range_start(std::move(array_expr)),
+          range_end(nullptr), is_reverse(rev), body(std::move(b)) {
+        this->location = loc;
+    }
+
     void accept(AstPrinter& printer) override;
 };
 
@@ -247,96 +270,6 @@ public:
 
     ReturnStatement(std::unique_ptr<Expression> expr, Location loc)
         : expression(std::move(expr)) {
-        this->location = loc;
-    }
-
-    void accept(AstPrinter& printer) override;
-};
-
-// ============================================================================
-// Declarations
-// ============================================================================
-
-class VariableDeclaration : public Declaration {
-public:
-    std::string name;
-    std::string type;
-    std::unique_ptr<TypeNode> type_node;
-    std::unique_ptr<Expression> expression;
-
-    // For "integer", "boolean", etc
-    VariableDeclaration(std::string name, std::string type, std::unique_ptr<Expression> exp, Location loc)
-        : name(std::move(name)), type(std::move(type)), type_node(nullptr), expression(std::move(exp)) {
-        this->location = loc;
-    }
-
-    // For TypeNodes
-    VariableDeclaration(std::string name, std::unique_ptr<TypeNode> type_node, std::unique_ptr<Expression> exp, Location loc)
-        : name(std::move(name)), type(""), type_node(std::move(type_node)), expression(std::move(exp)) {
-        this->location = loc;
-    }
-
-    void accept(AstPrinter& printer) override;
-};
-
-enum class RoutineBodyType {
-    Block,
-    Expression,
-    Forward
-};
-
-class RoutineDeclaration : public Declaration {
-public:
-    std::string name;
-    std::vector<std::string> parameters;
-    std::string return_type;
-
-    RoutineBodyType body_type;
-    std::vector<std::unique_ptr<AstNode>> body;
-    std::unique_ptr<Expression> expression_body;
-
-    // For Block declaration
-    RoutineDeclaration(std::string name,
-                       std::vector<std::string> params,
-                       std::string ret_type,
-                       std::vector<std::unique_ptr<AstNode>> b,
-                       Location loc)
-        : name(std::move(name)), parameters(std::move(params)), return_type(std::move(ret_type)),
-          body_type(RoutineBodyType::Block), body(std::move(b)), expression_body(nullptr) {
-        this->location = loc;
-    }
-
-    // For forward declaration
-    RoutineDeclaration(std::string name,
-                       std::vector<std::string> params,
-                       std::string ret_type,
-                       Location loc)
-        : name(std::move(name)), parameters(std::move(params)), return_type(std::move(ret_type)),
-          body_type(RoutineBodyType::Forward), expression_body(nullptr) {
-        this->location = loc;
-    }
-
-    // For (=> Expr)
-    RoutineDeclaration(std::string name,
-                       std::vector<std::string> params,
-                       std::string ret_type,
-                       std::unique_ptr<Expression> expr,
-                       Location loc)
-        : name(std::move(name)), parameters(std::move(params)), return_type(std::move(ret_type)),
-          body_type(RoutineBodyType::Expression), expression_body(std::move(expr)) {
-        this->location = loc;
-    }
-
-    void accept(AstPrinter& printer) override;
-};
-
-class TypeDeclaration : public Declaration {
-public:
-    std::string name;
-    std::unique_ptr<TypeNode> type;
-
-    TypeDeclaration(std::string name, std::unique_ptr<TypeNode> type, Location loc)
-        : name(std::move(name)), type(std::move(type)) {
         this->location = loc;
     }
 
@@ -371,11 +304,47 @@ public:
 
 class ArrayTypeNode : public TypeNode {
 public:
-    std::unique_ptr<Expression> size;
+    std::unique_ptr<Expression> size; // nullptr for unsized array in parameters (array [] T)
     std::unique_ptr<TypeNode> element_type;
 
     ArrayTypeNode(std::unique_ptr<Expression> size, std::unique_ptr<TypeNode> element_type, Location loc)
         : size(std::move(size)), element_type(std::move(element_type)) {
+        this->location = loc;
+    }
+
+    void accept(AstPrinter& printer) override;
+};
+
+// ============================================================================
+// Declarations
+// ============================================================================
+
+class ParameterDeclaration : public AstNode {
+public:
+    std::string name;
+    std::unique_ptr<TypeNode> type;
+
+    ParameterDeclaration(std::string name, std::unique_ptr<TypeNode> type, Location loc)
+        : name(std::move(name)), type(std::move(type)) {
+        this->location = loc;
+    }
+
+    ParameterDeclaration(std::string name, Location loc)
+        : name(std::move(name)), type(nullptr) {
+        this->location = loc;
+    }
+
+    void accept(AstPrinter& printer) override;
+};
+
+class VariableDeclaration : public Declaration {
+public:
+    std::string name;
+    std::unique_ptr<TypeNode> type;
+    std::unique_ptr<Expression> expression;
+
+    VariableDeclaration(std::string name, std::unique_ptr<TypeNode> type, std::unique_ptr<Expression> exp, Location loc)
+        : name(std::move(name)), type(std::move(type)), expression(std::move(exp)) {
         this->location = loc;
     }
 
@@ -388,6 +357,70 @@ public:
 
     RecordTypeNode(std::vector<std::unique_ptr<VariableDeclaration>> declarations, Location loc)
         : declarations(std::move(declarations)) {
+        this->location = loc;
+    }
+
+    void accept(AstPrinter& printer) override;
+};
+
+enum class RoutineBodyType {
+    Block,
+    Expression,
+    Forward
+};
+
+class RoutineDeclaration : public Declaration {
+public:
+    std::string name;
+    std::vector<std::unique_ptr<ParameterDeclaration>> parameters;
+    std::unique_ptr<TypeNode> return_type;
+
+    RoutineBodyType body_type;
+    std::vector<std::unique_ptr<AstNode>> body;
+    std::unique_ptr<Expression> expression_body;
+
+    // Block declaration
+    RoutineDeclaration(std::string name,
+                       std::vector<std::unique_ptr<ParameterDeclaration>> params,
+                       std::unique_ptr<TypeNode> ret_type,
+                       std::vector<std::unique_ptr<AstNode>> b,
+                       Location loc)
+        : name(std::move(name)), parameters(std::move(params)), return_type(std::move(ret_type)),
+          body_type(RoutineBodyType::Block), body(std::move(b)), expression_body(nullptr) {
+        this->location = loc;
+    }
+
+    // Forward declaration
+    RoutineDeclaration(std::string name,
+                       std::vector<std::unique_ptr<ParameterDeclaration>> params,
+                       std::unique_ptr<TypeNode> ret_type,
+                       Location loc)
+        : name(std::move(name)), parameters(std::move(params)), return_type(std::move(ret_type)),
+          body_type(RoutineBodyType::Forward), expression_body(nullptr) {
+        this->location = loc;
+    }
+
+    // Arrow expression (=> Expr)
+    RoutineDeclaration(std::string name,
+                       std::vector<std::unique_ptr<ParameterDeclaration>> params,
+                       std::unique_ptr<TypeNode> ret_type,
+                       std::unique_ptr<Expression> expr,
+                       Location loc)
+        : name(std::move(name)), parameters(std::move(params)), return_type(std::move(ret_type)),
+          body_type(RoutineBodyType::Expression), expression_body(std::move(expr)) {
+        this->location = loc;
+    }
+
+    void accept(AstPrinter& printer) override;
+};
+
+class TypeDeclaration : public Declaration {
+public:
+    std::string name;
+    std::unique_ptr<TypeNode> type;
+
+    TypeDeclaration(std::string name, std::unique_ptr<TypeNode> type, Location loc)
+        : name(std::move(name)), type(std::move(type)) {
         this->location = loc;
     }
 
