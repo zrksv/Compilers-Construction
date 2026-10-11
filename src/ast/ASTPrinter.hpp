@@ -49,4 +49,6 @@ public:
     void visit(FieldAccessExpr& node);
     void visit(ElementAccessExpr& node);
     void visit(TypeDeclaration& node);
+    void visit(ParameterDeclaration& node);
+    void visit(Program& node);
 };

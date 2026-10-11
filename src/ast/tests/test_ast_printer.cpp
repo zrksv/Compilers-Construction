@@ -117,7 +117,9 @@ void test_if_statement() {
 // Checks: routine calculate_sum(a, b) : integer is return a + b; end
 void test_routine_declaration() {
     Location loc{3, 1};
-    std::vector<std::string> params = {"a", "b"};
+    std::vector<std::unique_ptr<ParameterDeclaration>> params;
+    params.push_back(std::make_unique<ParameterDeclaration>("a", loc));
+    params.push_back(std::make_unique<ParameterDeclaration>("b", loc));
     
     // Body: return a + b
     auto varA = std::make_unique<Identifier>("a", loc);
@@ -128,12 +130,18 @@ void test_routine_declaration() {
     std::vector<std::unique_ptr<AstNode>> body;
     body.push_back(std::move(ret));
 
-    auto routine = std::make_unique<RoutineDeclaration>("calculate_sum", std::move(params), "integer", std::move(body), loc);
+    auto retType = std::make_unique<PrimitiveTypeNode>("integer", loc);
+    auto routine = std::make_unique<RoutineDeclaration>("calculate_sum", std::move(params), std::move(retType), std::move(body), loc);
     
     assert(routine != nullptr);
     assert(routine->name == "calculate_sum");
     assert(routine->parameters.size() == 2);
-    assert(routine->return_type == "integer");
+    assert(routine->parameters[0]->name == "a");
+    assert(routine->parameters[1]->name == "b");
+    assert(routine->return_type != nullptr);
+    auto* retPrim = dynamic_cast<PrimitiveTypeNode*>(routine->return_type.get());
+    assert(retPrim != nullptr);
+    assert(retPrim->type_name == "integer");
     assert(routine->body_type == RoutineBodyType::Block);
     assert(routine->body.size() == 1);
 
@@ -148,16 +156,20 @@ void test_routine_declaration() {
     verify_and_write("ast_test_routine.txt", routine.get(), expected);
 }
 
-// --- UNIT TEST 4: Variable Declaration (Primitive string) ---
+// --- UNIT TEST 4: Variable Declaration (Canonical) ---
 // Checks: var flag : boolean is true
 void test_variable_declaration() {
     Location loc{4, 1};
     auto valTrue = std::make_unique<BoolLiteral>(true, loc);
-    auto varDecl = std::make_unique<VariableDeclaration>("flag", "boolean", std::move(valTrue), loc);
+    auto boolType = std::make_unique<PrimitiveTypeNode>("boolean", loc);
+    auto varDecl = std::make_unique<VariableDeclaration>("flag", std::move(boolType), std::move(valTrue), loc);
     
     assert(varDecl != nullptr);
     assert(varDecl->name == "flag");
-    assert(varDecl->type == "boolean");
+    assert(varDecl->type != nullptr);
+    auto* primType = dynamic_cast<PrimitiveTypeNode*>(varDecl->type.get());
+    assert(primType != nullptr);
+    assert(primType->type_name == "boolean");
     assert(varDecl->expression != nullptr);
 
     std::string expected = 
@@ -341,8 +353,8 @@ void test_record_types() {
     
     // type Point is record var x: integer; var y: integer; end
     std::vector<std::unique_ptr<VariableDeclaration>> pointFields;
-    pointFields.push_back(std::make_unique<VariableDeclaration>("x", "integer", nullptr, loc));
-    pointFields.push_back(std::make_unique<VariableDeclaration>("y", "integer", nullptr, loc));
+    pointFields.push_back(std::make_unique<VariableDeclaration>("x", std::make_unique<PrimitiveTypeNode>("integer", loc), nullptr, loc));
+    pointFields.push_back(std::make_unique<VariableDeclaration>("y", std::make_unique<PrimitiveTypeNode>("integer", loc), nullptr, loc));
     auto pointRecord = std::make_unique<RecordTypeNode>(std::move(pointFields), loc);
     auto pointDecl = std::make_unique<TypeDeclaration>("Point", std::move(pointRecord), loc);
     
@@ -363,7 +375,7 @@ void test_record_types() {
     std::vector<std::unique_ptr<VariableDeclaration>> circleFields;
     auto pointTypeNode = std::make_unique<IdentifierTypeNode>("Point", loc);
     circleFields.push_back(std::make_unique<VariableDeclaration>("center", std::move(pointTypeNode), nullptr, loc));
-    circleFields.push_back(std::make_unique<VariableDeclaration>("radius", "real", nullptr, loc));
+    circleFields.push_back(std::make_unique<VariableDeclaration>("radius", std::make_unique<PrimitiveTypeNode>("real", loc), nullptr, loc));
     auto circleRecord = std::make_unique<RecordTypeNode>(std::move(circleFields), loc);
     auto circleDecl = std::make_unique<TypeDeclaration>("Circle", std::move(circleRecord), loc);
     
@@ -371,7 +383,7 @@ void test_record_types() {
     auto* recNode2 = dynamic_cast<RecordTypeNode*>(circleDecl->type.get());
     assert(recNode2 != nullptr);
     assert(recNode2->declarations.size() == 2);
-    assert(recNode2->declarations[0]->type_node != nullptr);
+    assert(recNode2->declarations[0]->type != nullptr);
 
     verify_and_write("ast_test_type_record_circle.txt", circleDecl.get(),
         "TypeDeclaration(Circle)\n"
@@ -396,7 +408,8 @@ void test_variables_with_type_node() {
     
     assert(varBuf != nullptr);
     assert(varBuf->name == "buffer");
-    assert(varBuf->type_node != nullptr);
+    assert(varBuf->type != nullptr);
+    assert(dynamic_cast<ArrayTypeNode*>(varBuf->type.get()) != nullptr);
     assert(varBuf->expression == nullptr);
 
     verify_and_write("ast_test_var_array.txt", varBuf.get(),
@@ -411,7 +424,8 @@ void test_variables_with_type_node() {
     
     assert(varPt != nullptr);
     assert(varPt->name == "pt");
-    assert(varPt->type_node != nullptr);
+    assert(varPt->type != nullptr);
+    assert(dynamic_cast<IdentifierTypeNode*>(varPt->type.get()) != nullptr);
 
     verify_and_write("ast_test_var_record.txt", varPt.get(),
         "VariableDeclaration(pt)\n"
@@ -570,11 +584,21 @@ void test_assignments_to_modifiable_primary() {
 // Checks: routine gcd(a: integer, b: integer) : integer
 void test_routine_forward_declaration() {
     Location loc{15, 1};
-    std::vector<std::string> params = {"a : integer", "b : integer"};
+    std::vector<std::unique_ptr<ParameterDeclaration>> params;
+    params.push_back(std::make_unique<ParameterDeclaration>("a", std::make_unique<PrimitiveTypeNode>("integer", loc), loc));
+    params.push_back(std::make_unique<ParameterDeclaration>("b", std::make_unique<PrimitiveTypeNode>("integer", loc), loc));
+    auto retType = std::make_unique<PrimitiveTypeNode>("integer", loc);
     
-    auto fwd = std::make_unique<RoutineDeclaration>("gcd", std::move(params), "integer", loc);
+    auto fwd = std::make_unique<RoutineDeclaration>("gcd", std::move(params), std::move(retType), loc);
     assert(fwd != nullptr);
     assert(fwd->name == "gcd");
+    assert(fwd->parameters.size() == 2);
+    assert(fwd->parameters[0]->name == "a");
+    assert(dynamic_cast<PrimitiveTypeNode*>(fwd->parameters[0]->type.get())->type_name == "integer");
+    assert(fwd->parameters[1]->name == "b");
+    assert(dynamic_cast<PrimitiveTypeNode*>(fwd->parameters[1]->type.get())->type_name == "integer");
+    assert(fwd->return_type != nullptr);
+    assert(dynamic_cast<PrimitiveTypeNode*>(fwd->return_type.get())->type_name == "integer");
     assert(fwd->body_type == RoutineBodyType::Forward);
     assert(fwd->body.empty());
     assert(fwd->expression_body == nullptr);
@@ -587,15 +611,22 @@ void test_routine_forward_declaration() {
 // Checks: routine square(x: integer) : integer => x * x
 void test_routine_arrow_body() {
     Location loc{16, 1};
-    std::vector<std::string> params = {"x : integer"};
+    std::vector<std::unique_ptr<ParameterDeclaration>> params;
+    params.push_back(std::make_unique<ParameterDeclaration>("x", std::make_unique<PrimitiveTypeNode>("integer", loc), loc));
     
     auto varX1 = std::make_unique<Identifier>("x", loc);
     auto varX2 = std::make_unique<Identifier>("x", loc);
     auto mul = std::make_unique<BinaryExpr>(BinOp::Mul, std::move(varX1), std::move(varX2), loc);
     
-    auto arrowRoutine = std::make_unique<RoutineDeclaration>("square", std::move(params), "integer", std::move(mul), loc);
+    auto retType = std::make_unique<PrimitiveTypeNode>("integer", loc);
+    auto arrowRoutine = std::make_unique<RoutineDeclaration>("square", std::move(params), std::move(retType), std::move(mul), loc);
     assert(arrowRoutine != nullptr);
     assert(arrowRoutine->name == "square");
+    assert(arrowRoutine->parameters.size() == 1);
+    assert(arrowRoutine->parameters[0]->name == "x");
+    assert(dynamic_cast<PrimitiveTypeNode*>(arrowRoutine->parameters[0]->type.get())->type_name == "integer");
+    assert(arrowRoutine->return_type != nullptr);
+    assert(dynamic_cast<PrimitiveTypeNode*>(arrowRoutine->return_type.get())->type_name == "integer");
     assert(arrowRoutine->body_type == RoutineBodyType::Expression);
     assert(arrowRoutine->expression_body != nullptr);
     
@@ -610,17 +641,142 @@ void test_routine_arrow_body() {
 // Checks: routine noop() is end
 void test_routine_empty_body() {
     Location loc{17, 1};
-    std::vector<std::string> params;
+    std::vector<std::unique_ptr<ParameterDeclaration>> params;
     std::vector<std::unique_ptr<AstNode>> emptyBody;
     
-    auto emptyRoutine = std::make_unique<RoutineDeclaration>("noop", std::move(params), "", std::move(emptyBody), loc);
+    auto emptyRoutine = std::make_unique<RoutineDeclaration>("noop", std::move(params), nullptr, std::move(emptyBody), loc);
     assert(emptyRoutine != nullptr);
     assert(emptyRoutine->name == "noop");
+    assert(emptyRoutine->parameters.empty());
+    assert(emptyRoutine->return_type == nullptr);
     assert(emptyRoutine->body_type == RoutineBodyType::Block);
     assert(emptyRoutine->body.empty());
     
     verify_and_write("ast_test_routine_empty.txt", emptyRoutine.get(),
         "RoutineDeclaration(noop)");
+}
+
+// --- UNIT TEST 18: For Loop over Array ---
+// Checks: for item in items reverse loop print(item); end
+void test_for_loop_array() {
+    Location loc{18, 1};
+    auto arrId = std::make_unique<Identifier>("items", loc);
+    
+    std::vector<std::unique_ptr<AstNode>> body;
+    std::vector<std::unique_ptr<Expression>> printArgs;
+    printArgs.push_back(std::make_unique<Identifier>("item", loc));
+    body.push_back(std::make_unique<PrintStatement>(std::move(printArgs), loc));
+
+    auto forStmt = std::make_unique<ForStatement>("item", std::move(arrId), true, std::move(body), loc);
+    
+    assert(forStmt != nullptr);
+    assert(forStmt->iterator_name == "item");
+    assert(forStmt->is_reverse == true);
+    assert(forStmt->range_start != nullptr);
+    assert(forStmt->range_end == nullptr);
+    assert(forStmt->body.size() == 1);
+
+    std::string expected = 
+        "ForLoop(item reverse)\n"
+        "├── Array: Identifier(items)\n"
+        "└── Body:\n"
+        "    └── PrintStatement\n"
+        "        └── Arg: Identifier(item)";
+
+    verify_and_write("ast_test_for_array.txt", forStmt.get(), expected);
+}
+
+// --- UNIT TEST 19: Full Program Root Node ---
+// Checks:
+// type MyInt is integer
+// routine main() is print(42); end
+void test_program() {
+    Location loc{19, 1};
+    std::vector<std::unique_ptr<AstNode>> decls;
+
+    // Declaration 1: type MyInt is integer
+    auto prim = std::make_unique<PrimitiveTypeNode>("integer", loc);
+    decls.push_back(std::make_unique<TypeDeclaration>("MyInt", std::move(prim), loc));
+
+    // Declaration 2: routine main() is print 42; end
+    std::vector<std::unique_ptr<ParameterDeclaration>> params;
+    std::vector<std::unique_ptr<AstNode>> routineBody;
+    std::vector<std::unique_ptr<Expression>> printArgs;
+    printArgs.push_back(std::make_unique<IntLiteral>(42, loc));
+    routineBody.push_back(std::make_unique<PrintStatement>(std::move(printArgs), loc));
+    decls.push_back(std::make_unique<RoutineDeclaration>("main", std::move(params), nullptr, std::move(routineBody), loc));
+
+    auto program = std::make_unique<Program>(std::move(decls), loc);
+    
+    assert(program != nullptr);
+    assert(program->declarations.size() == 2);
+
+    std::string expected = 
+        "Program\n"
+        "├── TypeDeclaration(MyInt)\n"
+        "│   └── Type: PrimitiveType(integer)\n"
+        "└── RoutineDeclaration(main)\n"
+        "    └── Body:\n"
+        "        └── PrintStatement\n"
+        "            └── Arg: IntLiteral(42)";
+
+    verify_and_write("ast_test_program.txt", program.get(), expected);
+}
+
+// --- UNIT TEST 20: Parameter Declaration (Canonical with Unsized Array Type L06) ---
+// Checks: arr : array [] integer
+void test_parameter_declaration() {
+    Location loc{20, 1};
+    auto elemInt = std::make_unique<PrimitiveTypeNode>("integer", loc);
+    auto unsizedArr = std::make_unique<ArrayTypeNode>(nullptr, std::move(elemInt), loc);
+    auto param = std::make_unique<ParameterDeclaration>("arr", std::move(unsizedArr), loc);
+
+    assert(param != nullptr);
+    assert(param->name == "arr");
+    assert(param->type != nullptr);
+    auto* arrType = dynamic_cast<ArrayTypeNode*>(param->type.get());
+    assert(arrType != nullptr);
+    assert(arrType->size == nullptr); // L06: unsized array parameter
+    assert(arrType->element_type != nullptr);
+    assert(dynamic_cast<PrimitiveTypeNode*>(arrType->element_type.get())->type_name == "integer");
+
+    std::string expected = 
+        "ParameterDeclaration(arr)\n"
+        "└── Type: ArrayType\n"
+        "    ├── Size: empty\n"
+        "    └── Element: PrimitiveType(integer)";
+
+    verify_and_write("ast_test_param_decl.txt", param.get(), expected);
+}
+
+// --- UNIT TEST 21: Routine with Canonical ParameterDeclaration vector & Return Type ---
+// Checks: routine transform(x: integer, arr: array [] integer) : boolean
+void test_routine_canonical_parameters() {
+    Location loc{21, 1};
+    std::vector<std::unique_ptr<ParameterDeclaration>> params;
+    params.push_back(std::make_unique<ParameterDeclaration>("x", std::make_unique<PrimitiveTypeNode>("integer", loc), loc));
+    
+    auto elemInt = std::make_unique<PrimitiveTypeNode>("integer", loc);
+    auto unsizedArr = std::make_unique<ArrayTypeNode>(nullptr, std::move(elemInt), loc);
+    params.push_back(std::make_unique<ParameterDeclaration>("arr", std::move(unsizedArr), loc));
+
+    auto retType = std::make_unique<PrimitiveTypeNode>("boolean", loc);
+    std::vector<std::unique_ptr<AstNode>> body;
+    auto rt = std::make_unique<RoutineDeclaration>("transform", std::move(params), std::move(retType), std::move(body), loc);
+
+    assert(rt != nullptr);
+    assert(rt->name == "transform");
+    assert(rt->parameters.size() == 2);
+    assert(rt->parameters[0]->name == "x");
+    assert(dynamic_cast<PrimitiveTypeNode*>(rt->parameters[0]->type.get())->type_name == "integer");
+    assert(rt->parameters[1]->name == "arr");
+    assert(dynamic_cast<ArrayTypeNode*>(rt->parameters[1]->type.get()) != nullptr);
+    assert(rt->return_type != nullptr);
+    assert(dynamic_cast<PrimitiveTypeNode*>(rt->return_type.get())->type_name == "boolean");
+    assert(rt->body_type == RoutineBodyType::Block);
+
+    std::string expected = "RoutineDeclaration(transform) params: [x : integer, arr] returns: boolean";
+    verify_and_write("ast_test_routine_canonical.txt", rt.get(), expected);
 }
 
 int main() {
@@ -646,7 +802,11 @@ int main() {
     test_routine_forward_declaration();
     test_routine_arrow_body();
     test_routine_empty_body();
+    test_for_loop_array();
+    test_program();
+    test_parameter_declaration();
+    test_routine_canonical_parameters();
     
-    std::cout << "All 17 canonical unit tests passed successfully!\n";
+    std::cout << "All 21 canonical unit tests passed successfully!\n";
     return 0;
 }
