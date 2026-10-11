@@ -1,5 +1,0 @@
-BinaryExpr(+)
-├── Left: IntLiteral(2)
-└── Right: BinaryExpr(*)
-    ├── Left: Identifier(x)
-    └── Right: IntLiteral(3)

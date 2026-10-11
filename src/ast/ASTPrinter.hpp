@@ -42,4 +42,11 @@ public:
     void visit(ReturnStatement& node);
     void visit(VariableDeclaration& node);
     void visit(RoutineDeclaration& node);
+    void visit(PrimitiveTypeNode& node);
+    void visit(IdentifierTypeNode& node);
+    void visit(ArrayTypeNode& node);
+    void visit(RecordTypeNode& node);
+    void visit(FieldAccessExpr& node);
+    void visit(ElementAccessExpr& node);
+    void visit(TypeDeclaration& node);
 };
