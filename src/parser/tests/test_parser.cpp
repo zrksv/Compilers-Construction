@@ -16,7 +16,11 @@ static bool parse_sample_helper(ParserDriver& driver, const std::string& sample_
         "../",
         "../../",
         "../../../",
-        "../../../../"
+        "../../../../",
+        "../../../../Compilers-Construction/",
+        "../../../Compilers-Construction/",
+        "../../Compilers-Construction/",
+        "../Compilers-Construction/"
     };
     for (const auto& pre : prefixes) {
         if (driver.parse_file(pre + sample_rel_path)) {

@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cassert>
 #include <vector>
-#include "../src/common/SourceManager.hpp"
+#include "../SourceManager.hpp"
 #include "../../lexer/Token.hpp"
 #include "../../lexer/Lexer.hpp"
 
