@@ -1,10 +1,10 @@
 #include <iostream>
 #include <cassert>
 #include "TestUtils.hpp"
-#include "../src/common/SourceManager.hpp"
-#include "../src/lexer/Lexer.hpp"
-#include "../src/parser/ParserDriver.hpp"
-#include "../src/ast/ASTPrinter.hpp"
+#include "SourceManager.hpp"
+#include "Lexer.hpp"
+#include "ParserDriver.hpp"
+#include "ASTPrinter.hpp"
 
 void run_pipeline_test(const std::string& sample_name) {
     std::string path = resolve_path(sample_name);
@@ -29,9 +29,6 @@ void run_pipeline_test(const std::string& sample_name) {
 }
 
 int main() {
-#ifdef _WIN32
-    SetConsoleOutputCP(CP_UTF8);
-#endif
     run_pipeline_test("01_print.imp");
     run_pipeline_test("02_variables.imp");
     run_pipeline_test("03_expressions.imp");
