@@ -82,7 +82,7 @@ void run_sample(const std::string& sample_name, bool to_file = false) {
     std::string out_path;
 
     if (to_file) {
-        std::filesystem::path out_dir = find_tests_dir() / "output";
+        std::filesystem::path out_dir = get_build_output_dir("lexer");
         std::filesystem::create_directories(out_dir);
         out_path = (out_dir / (stem + ".txt")).string();
         out_file.open(out_path, std::ios::out | std::ios::trunc);
