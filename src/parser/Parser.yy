@@ -1,14 +1,17 @@
 %skeleton "lalr1.cc"
-%require "3.5"
+%require "3.8"
 %defines
 %locations
 %define api.parser.class {Parser}
 %define api.namespace {yy}
 %define api.token.constructor
 %define api.value.type variant
+%define api.value.automove
 %define api.location.type {Location}
 %define parse.assert
 %define parse.error verbose
+%define parse.lac full
+%define lr.default-reduction accepting
 
 %code requires {
 #include <string>
@@ -58,56 +61,64 @@ void yy::Parser::error(const Location& loc, const std::string& msg) {
 %token LPAREN RPAREN LBRACKET RBRACKET COLON COMMA DOT
 %token SEMICOLON NEWLINE
 
+%precedence BLOCK_END
+%precedence error
 %left OR AND XOR
 %nonassoc LESS LESS_EQUAL GREATER GREATER_EQUAL EQUAL NOT_EQUAL
 %left PLUS MINUS
 %left MUL DIV MOD
 %precedence UMINUS UPLUS NOT
 
-%nterm <Expression*> expression modifiable_primary
-%nterm <std::vector<Expression*>> expression_list argument_list
-%nterm <Statement*> statement
-%nterm <Declaration*> declaration
-%nterm <VariableDeclaration*> variable_declaration
-%nterm <TypeDeclaration*> type_declaration
-%nterm <RoutineDeclaration*> routine_declaration
-%nterm <TypeNode*> type_spec primitive_type array_type record_type optional_return_type
-%nterm <std::vector<VariableDeclaration*>> record_fields
-%nterm <std::vector<AstNode*>> body body_items top_items
-%nterm <AstNode*> body_item top_item
-%nterm <std::vector<ParameterDeclaration*>> parameter_list parameters
-%nterm <ParameterDeclaration*> parameter
+%nterm <std::unique_ptr<Expression>> expression modifiable_primary
+%nterm <std::vector<std::unique_ptr<Expression>>> expression_list argument_list
+%nterm <std::unique_ptr<Statement>> statement
+%nterm <std::unique_ptr<Declaration>> declaration
+%nterm <std::unique_ptr<VariableDeclaration>> variable_declaration record_field
+%nterm <std::unique_ptr<TypeDeclaration>> type_declaration
+%nterm <std::unique_ptr<RoutineDeclaration>> routine_declaration
+%nterm <std::unique_ptr<TypeNode>> type_spec primitive_type array_type record_type optional_return_type
+%nterm <std::vector<std::unique_ptr<VariableDeclaration>>> record_fields
+%nterm <std::vector<std::unique_ptr<AstNode>>> body body_items top_items
+%nterm <std::unique_ptr<AstNode>> body_item top_item
+%nterm <std::vector<std::unique_ptr<ParameterDeclaration>>> parameter_list parameters
+%nterm <std::unique_ptr<ParameterDeclaration>> parameter
 %nterm <std::string> field_name
 %nterm <bool> optional_reverse
 
 %%
 
 program:
-    opt_seps top_items opt_seps
+    opt_seps
     {
-        std::vector<std::unique_ptr<AstNode>> decls;
-        for (auto* item : $2) {
-            decls.emplace_back(item);
-        }
-        driver.set_ast_root(std::make_unique<Program>(std::move(decls), @1));
+        driver.set_ast_root(std::make_unique<Program>(std::vector<std::unique_ptr<AstNode>>{}, Location{}));
     }
-  | opt_seps
+  | top_items opt_seps
     {
-        driver.set_ast_root(std::make_unique<Program>(std::vector<std::unique_ptr<AstNode>>{}, @1));
+        driver.set_ast_root(std::make_unique<Program>($1, Location{}));
+    }
+  | seps top_items opt_seps
+    {
+        driver.set_ast_root(std::make_unique<Program>($2, Location{}));
     }
   ;
 
 top_items:
     top_item
     {
-        std::vector<AstNode*> items;
-        items.push_back($1);
+        std::vector<std::unique_ptr<AstNode>> items;
+        if (auto item = $1) items.push_back(std::move(item));
         $$ = std::move(items);
     }
   | top_items seps top_item
     {
-        $1.push_back($3);
-        $$ = std::move($1);
+        auto items = $1;
+        if (auto item = $3) items.push_back(std::move(item));
+        $$ = std::move(items);
+    }
+  | top_items error
+    {
+        yyerrok;
+        $$ = $1;
     }
   ;
 
@@ -120,72 +131,74 @@ top_item:
     {
         $$ = $1;
     }
+  | error
+    {
+        yyerrok;
+        $$ = nullptr;
+    }
   ;
 
 routine_declaration:
-    ROUTINE IDENTIFIER LPAREN parameter_list RPAREN optional_return_type IS body END
+    ROUTINE IDENTIFIER LPAREN parameter_list RPAREN optional_return_type IS body block_end
     {
-        std::vector<std::unique_ptr<ParameterDeclaration>> param_vec;
-        for (auto* p : $4) {
-            param_vec.emplace_back(p);
-        }
-        std::vector<std::unique_ptr<AstNode>> body_vec;
-        for (auto* item : $8) {
-            body_vec.emplace_back(item);
-        }
-        $$ = new RoutineDeclaration($2, std::move(param_vec), std::unique_ptr<TypeNode>($6), std::move(body_vec), @1);
+        $$ = std::make_unique<RoutineDeclaration>($2, $4, $6, $8, @1);
     }
   | ROUTINE IDENTIFIER LPAREN parameter_list RPAREN optional_return_type ARROW expression
     {
-        std::vector<std::unique_ptr<ParameterDeclaration>> param_vec;
-        for (auto* p : $4) {
-            param_vec.emplace_back(p);
-        }
-        $$ = new RoutineDeclaration($2, std::move(param_vec), std::unique_ptr<TypeNode>($6), std::unique_ptr<Expression>($8), @1);
+        $$ = std::make_unique<RoutineDeclaration>($2, $4, $6, $8, @1);
     }
   | ROUTINE IDENTIFIER LPAREN parameter_list RPAREN optional_return_type
     {
-        std::vector<std::unique_ptr<ParameterDeclaration>> param_vec;
-        for (auto* p : $4) {
-            param_vec.emplace_back(p);
-        }
-        $$ = new RoutineDeclaration($2, std::move(param_vec), std::unique_ptr<TypeNode>($6), @1);
+        $$ = std::make_unique<RoutineDeclaration>($2, $4, $6, @1);
+    }
+  | ROUTINE error IS body block_end
+    {
+        $$ = nullptr;
+    }
+  | ROUTINE error ARROW expression
+    {
+        $$ = nullptr;
+    }
+  | ROUTINE error
+    {
+        $$ = nullptr;
     }
   ;
 
 parameter_list:
     %empty
     {
-        $$ = std::vector<ParameterDeclaration*>{};
+        $$ = std::vector<std::unique_ptr<ParameterDeclaration>>{};
     }
   | parameters
     {
-        $$ = std::move($1);
+        $$ = $1;
     }
   ;
 
 parameters:
     parameter
     {
-        std::vector<ParameterDeclaration*> params;
+        std::vector<std::unique_ptr<ParameterDeclaration>> params;
         params.push_back($1);
         $$ = std::move(params);
     }
   | parameters COMMA parameter
     {
-        $1.push_back($3);
-        $$ = std::move($1);
+        auto params = $1;
+        params.push_back($3);
+        $$ = std::move(params);
     }
   ;
 
 parameter:
     IDENTIFIER COLON type_spec
     {
-        $$ = new ParameterDeclaration($1, std::unique_ptr<TypeNode>($3), @1);
+        $$ = std::make_unique<ParameterDeclaration>($1, $3, @1);
     }
   | IDENTIFIER
     {
-        $$ = new ParameterDeclaration($1, @1);
+        $$ = std::make_unique<ParameterDeclaration>($1, @1);
     }
   ;
 
@@ -214,7 +227,7 @@ declaration:
 type_declaration:
     TYPE IDENTIFIER IS type_spec
     {
-        $$ = new TypeDeclaration($2, std::unique_ptr<TypeNode>($4), @1);
+        $$ = std::make_unique<TypeDeclaration>($2, $4, @1);
     }
   ;
 
@@ -225,7 +238,7 @@ type_spec:
     }
   | IDENTIFIER
     {
-        $$ = new IdentifierTypeNode($1, @1);
+        $$ = std::make_unique<IdentifierTypeNode>($1, @1);
     }
   | array_type
     {
@@ -238,88 +251,116 @@ type_spec:
   ;
 
 primitive_type:
-    KW_INTEGER { $$ = new PrimitiveTypeNode("integer", @1); }
-  | KW_REAL    { $$ = new PrimitiveTypeNode("real", @1); }
-  | KW_BOOLEAN { $$ = new PrimitiveTypeNode("boolean", @1); }
+    KW_INTEGER { $$ = std::make_unique<PrimitiveTypeNode>("integer", @1); }
+  | KW_REAL    { $$ = std::make_unique<PrimitiveTypeNode>("real", @1); }
+  | KW_BOOLEAN { $$ = std::make_unique<PrimitiveTypeNode>("boolean", @1); }
   ;
 
 array_type:
     ARRAY LBRACKET expression RBRACKET type_spec
     {
-        $$ = new ArrayTypeNode(std::unique_ptr<Expression>($3), std::unique_ptr<TypeNode>($5), @1);
+        $$ = std::make_unique<ArrayTypeNode>($3, $5, @1);
     }
   | ARRAY LBRACKET RBRACKET type_spec
     {
-        $$ = new ArrayTypeNode(nullptr, std::unique_ptr<TypeNode>($4), @1);
+        $$ = std::make_unique<ArrayTypeNode>(nullptr, $4, @1);
     }
   ;
 
 record_type:
-    RECORD opt_seps record_fields opt_seps END
+    RECORD record_fields opt_seps block_end
     {
-        std::vector<std::unique_ptr<VariableDeclaration>> decls;
-        for (auto* d : $3) {
-            decls.emplace_back(d);
-        }
-        $$ = new RecordTypeNode(std::move(decls), @1);
+        $$ = std::make_unique<RecordTypeNode>($2, @1);
     }
-  | RECORD opt_seps END
+  | RECORD seps record_fields opt_seps block_end
     {
-        $$ = new RecordTypeNode({}, @1);
+        $$ = std::make_unique<RecordTypeNode>($3, @1);
+    }
+  | RECORD opt_seps block_end
+    {
+        $$ = std::make_unique<RecordTypeNode>(std::vector<std::unique_ptr<VariableDeclaration>>{}, @1);
     }
   ;
 
 record_fields:
-    variable_declaration
+    record_field
     {
-        std::vector<VariableDeclaration*> fields;
-        fields.push_back($1);
+        std::vector<std::unique_ptr<VariableDeclaration>> fields;
+        if (auto field = $1) fields.push_back(std::move(field));
         $$ = std::move(fields);
     }
-  | record_fields seps variable_declaration
+  | record_fields seps record_field
     {
-        $1.push_back($3);
-        $$ = std::move($1);
+        auto fields = $1;
+        if (auto field = $3) fields.push_back(std::move(field));
+        $$ = std::move(fields);
+    }
+  | record_fields error
+    {
+        yyerrok;
+        $$ = $1;
+    }
+  ;
+
+record_field:
+    variable_declaration
+    {
+        $$ = $1;
+    }
+  | error
+    {
+        yyerrok;
+        $$ = nullptr;
     }
   ;
 
 variable_declaration:
     VAR IDENTIFIER COLON type_spec IS expression
     {
-        $$ = new VariableDeclaration($2, std::unique_ptr<TypeNode>($4), std::unique_ptr<Expression>($6), @1);
+        $$ = std::make_unique<VariableDeclaration>($2, $4, $6, @1);
     }
   | VAR IDENTIFIER COLON type_spec
     {
-        $$ = new VariableDeclaration($2, std::unique_ptr<TypeNode>($4), nullptr, @1);
+        $$ = std::make_unique<VariableDeclaration>($2, $4, nullptr, @1);
     }
   | VAR IDENTIFIER IS expression
     {
-        $$ = new VariableDeclaration($2, nullptr, std::unique_ptr<Expression>($4), @1);
+        $$ = std::make_unique<VariableDeclaration>($2, nullptr, $4, @1);
     }
   ;
 
 body:
     opt_seps
     {
-        $$ = std::vector<AstNode*>{};
+        $$ = std::vector<std::unique_ptr<AstNode>>{};
     }
-  | opt_seps body_items opt_seps
+  | body_items opt_seps
     {
-        $$ = std::move($2);
+        $$ = $1;
+    }
+  | seps body_items opt_seps
+    {
+        $$ = $2;
     }
   ;
 
 body_items:
     body_item
     {
-        std::vector<AstNode*> items;
-        items.push_back($1);
+        std::vector<std::unique_ptr<AstNode>> items;
+        if (auto item = $1) items.push_back(std::move(item));
         $$ = std::move(items);
     }
   | body_items seps body_item
     {
-        $1.push_back($3);
-        $$ = std::move($1);
+        auto items = $1;
+        if (auto item = $3) items.push_back(std::move(item));
+        $$ = std::move(items);
+    }
+  | body_items error
+    {
+        yyerrok;
+        $$ = $1;
     }
   ;
 
@@ -332,80 +373,93 @@ body_item:
     {
         $$ = $1;
     }
+  | error
+    {
+        yyerrok;
+        $$ = nullptr;
+    }
   ;
 
 statement:
     modifiable_primary ASSIGN expression
     {
-        $$ = new AssignStatement(std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<AssignStatement>($1, $3, @2);
     }
   | IDENTIFIER LPAREN argument_list RPAREN
     {
-        std::vector<std::unique_ptr<Expression>> args;
-        for (auto* arg : $3) {
-            args.emplace_back(arg);
-        }
-        $$ = new RoutineCallStmt($1, std::move(args), @1);
+        $$ = std::make_unique<RoutineCallStmt>($1, $3, @1);
     }
   | PRINT expression_list
     {
-        std::vector<std::unique_ptr<Expression>> exprs;
-        for (auto* e : $2) {
-            exprs.emplace_back(e);
-        }
-        $$ = new PrintStatement(std::move(exprs), @1);
+        $$ = std::make_unique<PrintStatement>($2, @1);
     }
-  | IF expression THEN body END
+  | IF expression THEN body block_end
     {
-        std::vector<std::unique_ptr<AstNode>> then_body;
-        for (auto* n : $4) {
-            then_body.emplace_back(n);
-        }
-        $$ = new IfStatement(std::unique_ptr<Expression>($2), std::move(then_body), std::vector<std::unique_ptr<AstNode>>{}, @1);
+        $$ = std::make_unique<IfStatement>($2, $4, std::vector<std::unique_ptr<AstNode>>{}, @1);
     }
-  | IF expression THEN body ELSE body END
+  | IF expression THEN body ELSE body block_end
     {
-        std::vector<std::unique_ptr<AstNode>> then_body;
-        for (auto* n : $4) {
-            then_body.emplace_back(n);
-        }
-        std::vector<std::unique_ptr<AstNode>> else_body;
-        for (auto* n : $6) {
-            else_body.emplace_back(n);
-        }
-        $$ = new IfStatement(std::unique_ptr<Expression>($2), std::move(then_body), std::move(else_body), @1);
+        $$ = std::make_unique<IfStatement>($2, $4, $6, @1);
     }
-  | WHILE expression LOOP body END
+  | WHILE expression LOOP body block_end
     {
-        std::vector<std::unique_ptr<AstNode>> b;
-        for (auto* n : $4) {
-            b.emplace_back(n);
-        }
-        $$ = new WhileStatement(std::unique_ptr<Expression>($2), std::move(b), @1);
+        $$ = std::make_unique<WhileStatement>($2, $4, @1);
     }
-  | FOR IDENTIFIER IN expression RANGE expression optional_reverse LOOP body END
+  | FOR IDENTIFIER IN expression RANGE expression optional_reverse LOOP body block_end
     {
-        std::vector<std::unique_ptr<AstNode>> b;
-        for (auto* n : $9) {
-            b.emplace_back(n);
-        }
-        $$ = new ForStatement($2, std::unique_ptr<Expression>($4), std::unique_ptr<Expression>($6), $7, std::move(b), @1);
+        $$ = std::make_unique<ForStatement>($2, $4, $6, $7, $9, @1);
     }
-  | FOR IDENTIFIER IN expression optional_reverse LOOP body END
+  | FOR IDENTIFIER IN expression optional_reverse LOOP body block_end
     {
-        std::vector<std::unique_ptr<AstNode>> b;
-        for (auto* n : $7) {
-            b.emplace_back(n);
-        }
-        $$ = new ForStatement($2, std::unique_ptr<Expression>($4), $5, std::move(b), @1);
+        $$ = std::make_unique<ForStatement>($2, $4, $5, $7, @1);
+    }
+  | IF error THEN body block_end
+    {
+        $$ = nullptr;
+    }
+  | IF error THEN body ELSE body block_end
+    {
+        $$ = nullptr;
+    }
+  | IF error sep body block_end
+    {
+        $$ = nullptr;
+    }
+  | IF error sep body ELSE body block_end
+    {
+        $$ = nullptr;
+    }
+  | WHILE error LOOP body block_end
+    {
+        $$ = nullptr;
+    }
+  | WHILE error sep body block_end
+    {
+        $$ = nullptr;
+    }
+  | FOR error LOOP body block_end
+    {
+        $$ = nullptr;
+    }
+  | FOR error sep body block_end
+    {
+        $$ = nullptr;
     }
   | RETURN
     {
-        $$ = new ReturnStatement(nullptr, @1);
+        $$ = std::make_unique<ReturnStatement>(nullptr, @1);
     }
   | RETURN expression
     {
-        $$ = new ReturnStatement(std::unique_ptr<Expression>($2), @1);
+        $$ = std::make_unique<ReturnStatement>($2, @1);
+    }
+  ;
+
+block_end:
+    END %prec BLOCK_END
+  | END error
+    {
+        yyerrok;
     }
   ;
 
@@ -423,15 +477,15 @@ optional_reverse:
 modifiable_primary:
     IDENTIFIER
     {
-        $$ = new Identifier($1, @1);
+        $$ = std::make_unique<Identifier>($1, @1);
     }
   | modifiable_primary DOT field_name opt_empty_parens
     {
-        $$ = new FieldAccessExpr(std::unique_ptr<Expression>($1), $3, @2);
+        $$ = std::make_unique<FieldAccessExpr>($1, $3, @2);
     }
   | modifiable_primary LBRACKET expression RBRACKET
     {
-        $$ = new ElementAccessExpr(std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<ElementAccessExpr>($1, $3, @2);
     }
   ;
 
@@ -448,19 +502,19 @@ field_name:
 expression:
     INT_LITERAL
     {
-        $$ = new IntLiteral($1, @1);
+        $$ = std::make_unique<IntLiteral>($1, @1);
     }
   | REAL_LITERAL
     {
-        $$ = new RealLiteral($1, @1);
+        $$ = std::make_unique<RealLiteral>($1, @1);
     }
   | TRUE
     {
-        $$ = new BoolLiteral(true, @1);
+        $$ = std::make_unique<BoolLiteral>(true, @1);
     }
   | FALSE
     {
-        $$ = new BoolLiteral(false, @1);
+        $$ = std::make_unique<BoolLiteral>(false, @1);
     }
   | modifiable_primary
     {
@@ -472,104 +526,101 @@ expression:
     }
   | expression PLUS expression
     {
-        $$ = new BinaryExpr(BinOp::Plus, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::Plus, $1, $3, @2);
     }
   | expression MINUS expression
     {
-        $$ = new BinaryExpr(BinOp::Minus, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::Minus, $1, $3, @2);
     }
   | expression MUL expression
     {
-        $$ = new BinaryExpr(BinOp::Mul, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::Mul, $1, $3, @2);
     }
   | expression DIV expression
     {
-        $$ = new BinaryExpr(BinOp::Div, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::Div, $1, $3, @2);
     }
   | expression MOD expression
     {
-        $$ = new BinaryExpr(BinOp::Mod, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::Mod, $1, $3, @2);
     }
   | expression AND expression
     {
-        $$ = new BinaryExpr(BinOp::And, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::And, $1, $3, @2);
     }
   | expression OR expression
     {
-        $$ = new BinaryExpr(BinOp::Or, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::Or, $1, $3, @2);
     }
   | expression XOR expression
     {
-        $$ = new BinaryExpr(BinOp::Xor, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::Xor, $1, $3, @2);
     }
   | expression LESS expression
     {
-        $$ = new BinaryExpr(BinOp::Less, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::Less, $1, $3, @2);
     }
   | expression LESS_EQUAL expression
     {
-        $$ = new BinaryExpr(BinOp::LessEqual, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::LessEqual, $1, $3, @2);
     }
   | expression GREATER expression
     {
-        $$ = new BinaryExpr(BinOp::Greater, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::Greater, $1, $3, @2);
     }
   | expression GREATER_EQUAL expression
     {
-        $$ = new BinaryExpr(BinOp::GreaterEqual, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::GreaterEqual, $1, $3, @2);
     }
   | expression EQUAL expression
     {
-        $$ = new BinaryExpr(BinOp::Equal, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::Equal, $1, $3, @2);
     }
   | expression NOT_EQUAL expression
     {
-        $$ = new BinaryExpr(BinOp::NotEqual, std::unique_ptr<Expression>($1), std::unique_ptr<Expression>($3), @2);
+        $$ = std::make_unique<BinaryExpr>(BinOp::NotEqual, $1, $3, @2);
     }
   | PLUS expression %prec UPLUS
     {
-        $$ = new UnaryExpr(UnaryOp::Plus, std::unique_ptr<Expression>($2), @1);
+        $$ = std::make_unique<UnaryExpr>(UnaryOp::Plus, $2, @1);
     }
   | MINUS expression %prec UMINUS
     {
-        $$ = new UnaryExpr(UnaryOp::Minus, std::unique_ptr<Expression>($2), @1);
+        $$ = std::make_unique<UnaryExpr>(UnaryOp::Minus, $2, @1);
     }
   | NOT expression %prec NOT
     {
-        $$ = new UnaryExpr(UnaryOp::Not, std::unique_ptr<Expression>($2), @1);
+        $$ = std::make_unique<UnaryExpr>(UnaryOp::Not, $2, @1);
     }
   | IDENTIFIER LPAREN argument_list RPAREN
     {
-        std::vector<std::unique_ptr<Expression>> args;
-        for (auto* arg : $3) {
-            args.emplace_back(arg);
-        }
-        $$ = new RoutineCallExpr($1, std::move(args), @1);
+        $$ = std::make_unique<RoutineCallExpr>($1, $3, @1);
     }
   ;
 
 argument_list:
     %empty
     {
-        $$ = std::vector<Expression*>{};
+        $$ = std::vector<std::unique_ptr<Expression>>{};
     }
   | expression_list
     {
-        $$ = std::move($1);
+        $$ = $1;
     }
   ;
 
 expression_list:
     expression
     {
-        std::vector<Expression*> list;
+        std::vector<std::unique_ptr<Expression>> list;
         list.push_back($1);
         $$ = std::move(list);
     }
   | expression_list COMMA expression
     {
-        $1.push_back($3);
-        $$ = std::move($1);
+        auto list = $1;
+        list.push_back($3);
+        $$ = std::move(list);
     }
   ;
 
