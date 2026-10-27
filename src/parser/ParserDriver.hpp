@@ -22,15 +22,16 @@ private:
     std::vector<ParseError> errors;
     bool trace_parsing = false;
     bool trace_scanning = false;
+    int paren_depth = 0;
 
 public:
     ParserDriver() = default;
     ~ParserDriver() = default;
 
-    bool parse(Lexer& lexer);
-    bool parse(SourceManager& source_manager);
-    bool parse(const std::string& source_code);
-    bool parse_file(const std::string& filename);
+    [[nodiscard]] bool parse(Lexer& lexer);
+    [[nodiscard]] bool parse(SourceManager& source_manager);
+    [[nodiscard]] bool parse(const std::string& source_code);
+    [[nodiscard]] bool parse_file(const std::string& filename);
 
     AstNode* get_ast() const { return ast_root.get(); }
     std::unique_ptr<AstNode> take_ast() { return std::move(ast_root); }
@@ -44,6 +45,8 @@ public:
     void clear_errors() { errors.clear(); }
 
     Lexer* get_lexer() const { return lexer; }
+
+    int& get_paren_depth() { return paren_depth; }
 
     void set_trace_parsing(bool trace) { trace_parsing = trace; }
     bool get_trace_parsing() const { return trace_parsing; }

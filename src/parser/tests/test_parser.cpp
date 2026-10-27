@@ -688,6 +688,499 @@ void test_error_recovery_nested_block() {
     std::cout << "[PASS] test_error_recovery_nested_block\n";
 }
 
+void test_error_recovery_single_separator() {
+    std::string code = "routine f() is\n"
+                       "    var a is 1\n"
+                       "    x := := 2\n"
+                       "    var b is 2\n"
+                       "end\n"
+                       "var c is 3\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 1 && "Only the broken line must be reported");
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 2);
+
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(routine != nullptr && routine->body.size() == 2);
+    auto* varA = dynamic_cast<VariableDeclaration*>(routine->body[0].get());
+    assert(varA != nullptr && varA->name == "a");
+    auto* varB = dynamic_cast<VariableDeclaration*>(routine->body[1].get());
+    assert(varB != nullptr && varB->name == "b");
+
+    auto* varC = dynamic_cast<VariableDeclaration*>(prog->declarations[1].get());
+    assert(varC != nullptr && varC->name == "c");
+
+    std::cout << "[PASS] test_error_recovery_single_separator\n";
+}
+
+void test_error_recovery_keeps_previous_items() {
+    std::string code = "var a is 1\n"
+                       ")\n"
+                       "type R is record\n"
+                       "    var x : integer\n"
+                       "    )\n"
+                       "    var y : integer\n"
+                       "end\n"
+                       "routine f() is\n"
+                       "    print 1\n"
+                       "    )\n"
+                       "    print 2\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 3);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 3);
+
+    auto* varA = dynamic_cast<VariableDeclaration*>(prog->declarations[0].get());
+    assert(varA != nullptr && varA->name == "a");
+
+    auto* typeDecl = dynamic_cast<TypeDeclaration*>(prog->declarations[1].get());
+    assert(typeDecl != nullptr);
+    auto* recType = dynamic_cast<RecordTypeNode*>(typeDecl->type.get());
+    assert(recType != nullptr && recType->declarations.size() == 2);
+    assert(recType->declarations[0]->name == "x");
+    assert(recType->declarations[1]->name == "y");
+
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[2].get());
+    assert(routine != nullptr && routine->body.size() == 2);
+
+    std::cout << "[PASS] test_error_recovery_keeps_previous_items\n";
+}
+
+void test_error_recovery_first_item() {
+    std::string code = "bad top level\n"
+                       "type R is record\n"
+                       "    var : integer\n"
+                       "    var y : integer\n"
+                       "end\n"
+                       "routine f() is\n"
+                       "    x := ;\n"
+                       "    print 1\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 3);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 2);
+
+    auto* typeDecl = dynamic_cast<TypeDeclaration*>(prog->declarations[0].get());
+    assert(typeDecl != nullptr);
+    auto* recType = dynamic_cast<RecordTypeNode*>(typeDecl->type.get());
+    assert(recType != nullptr && recType->declarations.size() == 1);
+    assert(recType->declarations[0]->name == "y");
+
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[1].get());
+    assert(routine != nullptr && routine->body.size() == 1);
+    assert(dynamic_cast<PrintStatement*>(routine->body[0].get()) != nullptr);
+
+    std::cout << "[PASS] test_error_recovery_first_item\n";
+}
+
+void test_error_recovery_last_item() {
+    std::string code = "routine f() is\n"
+                       "    print 1\n"
+                       "    x := end\n"
+                       "routine g() is print 2 end\n"
+                       "var z is";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 2);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 2);
+
+    auto* f = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(f != nullptr && f->name == "f" && f->body.size() == 1);
+    auto* g = dynamic_cast<RoutineDeclaration*>(prog->declarations[1].get());
+    assert(g != nullptr && g->name == "g");
+
+    std::cout << "[PASS] test_error_recovery_last_item\n";
+}
+
+void test_error_recovery_compound_headers() {
+    std::string code = "routine f() is\n"
+                       "    if x + then\n"
+                       "        print 1\n"
+                       "    else\n"
+                       "        print 2\n"
+                       "    end\n"
+                       "    while 1 +\n"
+                       "        print 3\n"
+                       "    end\n"
+                       "    for i in 1 .. loop\n"
+                       "        print 4\n"
+                       "    end\n"
+                       "    print 5\n"
+                       "end\n"
+                       "routine g() is print 6 end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 3);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 2);
+
+    auto* f = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(f != nullptr && f->name == "f");
+    assert(f->body.size() == 1 && "Broken statements are dropped, the rest of the body is kept");
+    assert(dynamic_cast<PrintStatement*>(f->body[0].get()) != nullptr);
+
+    auto* g = dynamic_cast<RoutineDeclaration*>(prog->declarations[1].get());
+    assert(g != nullptr && g->name == "g");
+
+    std::cout << "[PASS] test_error_recovery_compound_headers\n";
+}
+
+void test_error_recovery_routine_header() {
+    std::string code = "routine a(x integer) is\n"
+                       "    print 1\n"
+                       "end\n"
+                       "routine b(x: integer): integer => x +\n"
+                       "routine c(x: ) \n"
+                       "routine d() is print 2 end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 3);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1);
+
+    auto* d = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(d != nullptr && d->name == "d");
+
+    std::cout << "[PASS] test_error_recovery_routine_header\n";
+}
+
+void test_newline_inside_parentheses() {
+    std::string code = "routine add(a : integer,\n"
+                       "            b : integer) : integer => (a +\n"
+                       "    b)\n"
+                       "routine main() is\n"
+                       "    var x is (1 +\n"
+                       "        2) * 3\n"
+                       "    print add(x,\n"
+                       "\n"
+                       "        4)\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(ok && "Newlines inside parentheses must be ignored");
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 2);
+
+    auto* add = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(add != nullptr && add->parameters.size() == 2);
+    assert(dynamic_cast<BinaryExpr*>(add->expression_body.get()) != nullptr);
+
+    auto* main = dynamic_cast<RoutineDeclaration*>(prog->declarations[1].get());
+    assert(main != nullptr && main->body.size() == 2);
+    auto* x = dynamic_cast<VariableDeclaration*>(main->body[0].get());
+    assert(x != nullptr);
+    auto* mul = dynamic_cast<BinaryExpr*>(x->expression.get());
+    assert(mul != nullptr && mul->op == BinOp::Mul);
+    auto* call = dynamic_cast<PrintStatement*>(main->body[1].get());
+    assert(call != nullptr);
+
+    std::cout << "[PASS] test_newline_inside_parentheses\n";
+}
+
+void test_newline_outside_parentheses() {
+    ParserDriver driver;
+    assert(!driver.parse("routine main() is\n    var x is 1 +\n        2\nend\n"));
+    assert(!driver.parse("routine main() is\n    var a : array [3] integer\n    a[1\n] := 2\nend\n"));
+    std::cout << "[PASS] test_newline_outside_parentheses\n";
+}
+
+void test_error_recovery_unclosed_parenthesis() {
+    std::string code = "routine main() is\n"
+                       "    print (1 + 2\n"
+                       "    print 3\n"
+                       "    var y is 4\n"
+                       "end\n"
+                       "routine g() is print 5 end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 1);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 2);
+    auto* main = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(main != nullptr && main->body.size() == 1);
+    auto* y = dynamic_cast<VariableDeclaration*>(main->body[0].get());
+    assert(y != nullptr && y->name == "y");
+
+    std::cout << "[PASS] test_error_recovery_unclosed_parenthesis\n";
+}
+
+void test_unknown_character_top_level() {
+    std::string code = "var a is @5\n"
+                       "var b is 2\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 1 && "Only the lexical error must be reported");
+    const auto& err = driver.get_errors()[0];
+    assert(err.location.row == 1 && err.location.column == 10);
+    assert(err.message.find("'@'") != std::string::npos);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1 && "The declaration with '@' must not reach the AST");
+    auto* varB = dynamic_cast<VariableDeclaration*>(prog->declarations[0].get());
+    assert(varB != nullptr && varB->name == "b");
+
+    std::cout << "[PASS] test_unknown_character_top_level\n";
+}
+
+void test_unknown_character_in_body() {
+    std::string code = "routine f() is\n"
+                       "    var a is 1\n"
+                       "    print $\n"
+                       "    var b is 2\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 1);
+    assert(driver.get_errors()[0].location.row == 3);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 1);
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(routine != nullptr && routine->body.size() == 2);
+    auto* varA = dynamic_cast<VariableDeclaration*>(routine->body[0].get());
+    assert(varA != nullptr && varA->name == "a");
+    auto* varB = dynamic_cast<VariableDeclaration*>(routine->body[1].get());
+    assert(varB != nullptr && varB->name == "b");
+
+    std::cout << "[PASS] test_unknown_character_in_body\n";
+}
+
+void test_unknown_characters_each_reported() {
+    std::string code = "var x is 1 @# 2\n"
+                       "var y is 3\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 2);
+    for (const auto& err : driver.get_errors()) {
+        assert(err.message.find("syntax error") == std::string::npos);
+    }
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 1);
+    auto* varY = dynamic_cast<VariableDeclaration*>(prog->declarations[0].get());
+    assert(varY != nullptr && varY->name == "y");
+
+    std::cout << "[PASS] test_unknown_characters_each_reported\n";
+}
+
+void test_program_location_is_file_start() {
+    const std::vector<std::string> codes = {
+        "var x is 1\n",
+        "  \n\n  ; var x is 1\n",
+        "\n\t\n",
+        "",
+    };
+    for (const auto& code : codes) {
+        ParserDriver driver;
+        bool ok = driver.parse(code);
+        assert(ok);
+        auto* prog = dynamic_cast<Program*>(driver.get_ast());
+        assert(prog != nullptr);
+        assert(prog->location.row == 1 && prog->location.column == 1);
+    }
+
+    std::cout << "[PASS] test_program_location_is_file_start\n";
+}
+
+void test_ast_null_after_unclosed_block_at_eof() {
+    std::string code = "routine first() is\n"
+                       "    print 1\n"
+                       "end\n"
+                       "routine second() is\n"
+                       "    print 2\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 1);
+    const auto& err = driver.get_errors()[0];
+    assert(err.location.row == 6 && err.location.column == 1);
+    assert(err.message.find("end of file") != std::string::npos);
+    assert(driver.get_ast() == nullptr && "No substitute root after an aborted parse");
+    assert(driver.take_ast() == nullptr);
+
+    assert(driver.parse("var x is 1\n"));
+    assert(driver.get_ast() != nullptr && "A later successful parse builds a fresh root");
+
+    std::cout << "[PASS] test_ast_null_after_unclosed_block_at_eof\n";
+}
+
+void test_parameterless_routine_call_requires_parentheses() {
+    std::string code = "routine tick() is\n"
+                       "    print 1\n"
+                       "end\n"
+                       "routine one() : integer => 1\n"
+                       "routine main() is\n"
+                       "    tick()\n"
+                       "    var x is one()\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(ok);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 3);
+    auto* tick = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(tick != nullptr && tick->parameters.empty());
+
+    auto* main = dynamic_cast<RoutineDeclaration*>(prog->declarations[2].get());
+    assert(main != nullptr && main->body.size() == 2);
+    auto* callStmt = dynamic_cast<RoutineCallStmt*>(main->body[0].get());
+    assert(callStmt != nullptr && callStmt->routine_name == "tick" && callStmt->arguments.empty());
+    auto* x = dynamic_cast<VariableDeclaration*>(main->body[1].get());
+    assert(x != nullptr);
+    auto* callExpr = dynamic_cast<RoutineCallExpr*>(x->expression.get());
+    assert(callExpr != nullptr && callExpr->routine_name == "one" && callExpr->arguments.empty());
+
+    ParserDriver bare;
+    assert(!bare.parse("routine tick() is\n    print 1\nend\nroutine main() is\n    tick\nend\n"));
+    assert(bare.get_errors().size() == 1);
+    assert(bare.get_errors()[0].location.row == 5);
+
+    std::cout << "[PASS] test_parameterless_routine_call_requires_parentheses\n";
+}
+
+void test_error_recovery_before_else() {
+    std::string code = "routine f() is\n"
+                       "    if true then\n"
+                       "        print 1\n"
+                       "        x :=\n"
+                       "    else\n"
+                       "        print 2\n"
+                       "    end\n"
+                       "    print 3\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 1);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 1);
+    auto* f = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(f != nullptr && f->body.size() == 2);
+    auto* ifStmt = dynamic_cast<IfStatement*>(f->body[0].get());
+    assert(ifStmt != nullptr);
+    assert(ifStmt->then_body.size() == 1);
+    assert(ifStmt->else_body.size() == 1);
+    assert(dynamic_cast<PrintStatement*>(f->body[1].get()) != nullptr);
+
+    std::cout << "[PASS] test_error_recovery_before_else\n";
+}
+
+void test_error_recovery_consecutive_broken_lines() {
+    std::string code = "routine f() is\n"
+                       "    x :=\n"
+                       "    y :=\n"
+                       "    print 1\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 2);
+    assert(driver.get_errors()[0].location.row == 2);
+    assert(driver.get_errors()[1].location.row == 3);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 1);
+    auto* f = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(f != nullptr && f->body.size() == 1);
+    assert(dynamic_cast<PrintStatement*>(f->body[0].get()) != nullptr);
+
+    std::cout << "[PASS] test_error_recovery_consecutive_broken_lines\n";
+}
+
+void test_error_recovery_header_without_keyword() {
+    std::string code = "routine f() is\n"
+                       "    if x\n"
+                       "        print 1\n"
+                       "    else\n"
+                       "        print 2\n"
+                       "    end\n"
+                       "    while 1 + loop\n"
+                       "        print 3\n"
+                       "    end\n"
+                       "    print 4\n"
+                       "end\n"
+                       "routine g() is print 5 end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 2);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 2);
+    auto* f = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(f != nullptr && f->body.size() == 1);
+    assert(dynamic_cast<PrintStatement*>(f->body[0].get()) != nullptr);
+    auto* g = dynamic_cast<RoutineDeclaration*>(prog->declarations[1].get());
+    assert(g != nullptr && g->name == "g");
+
+    std::cout << "[PASS] test_error_recovery_header_without_keyword\n";
+}
+
+void test_error_recovery_tokens_after_end() {
+    std::string code = "routine f() is\n"
+                       "    while true loop print 1 end print 2\n"
+                       "    print 3\n"
+                       "end\n"
+                       "type R is record var x : integer end var y is 1\n"
+                       "routine g() is print 4 end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(!ok);
+    assert(driver.get_errors().size() == 2);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 3);
+
+    auto* f = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(f != nullptr && f->body.size() == 2);
+    auto* loop = dynamic_cast<WhileStatement*>(f->body[0].get());
+    assert(loop != nullptr && loop->body.size() == 1);
+    assert(dynamic_cast<PrintStatement*>(f->body[1].get()) != nullptr);
+
+    auto* typeDecl = dynamic_cast<TypeDeclaration*>(prog->declarations[1].get());
+    assert(typeDecl != nullptr);
+    auto* rec = dynamic_cast<RecordTypeNode*>(typeDecl->type.get());
+    assert(rec != nullptr && rec->declarations.size() == 1);
+
+    auto* g = dynamic_cast<RoutineDeclaration*>(prog->declarations[2].get());
+    assert(g != nullptr && g->name == "g");
+
+    std::cout << "[PASS] test_error_recovery_tokens_after_end\n";
+}
+
 int main() {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -716,6 +1209,29 @@ int main() {
     test_error_recovery_top_level();
     test_error_recovery_record_fields();
     test_error_recovery_nested_block();
+    test_error_recovery_single_separator();
+    test_error_recovery_keeps_previous_items();
+    test_error_recovery_first_item();
+    test_error_recovery_last_item();
+    test_error_recovery_compound_headers();
+    test_error_recovery_routine_header();
+
+    test_newline_inside_parentheses();
+    test_newline_outside_parentheses();
+    test_error_recovery_unclosed_parenthesis();
+
+    test_unknown_character_top_level();
+    test_unknown_character_in_body();
+    test_unknown_characters_each_reported();
+
+    test_program_location_is_file_start();
+    test_ast_null_after_unclosed_block_at_eof();
+    test_parameterless_routine_call_requires_parentheses();
+
+    test_error_recovery_before_else();
+    test_error_recovery_consecutive_broken_lines();
+    test_error_recovery_header_without_keyword();
+    test_error_recovery_tokens_after_end();
 
     std::cout << "All parser tests passed successfully!\n";
     return 0;
