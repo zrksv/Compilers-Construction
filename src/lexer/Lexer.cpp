@@ -3,10 +3,31 @@
 #include <unordered_map>
 
 void Lexer::skip_whitespaces() {
-    char c = source.peek();
-    while (!source.is_eof() && (c == ' ' || c == '\t' || c == '\r')) {
-        source.get();
-        c = source.peek();
+    while (!source.is_eof()) {
+        char c = source.peek();
+        if (c == ' ' || c == '\t' || c == '\r') {
+            source.get();
+        } else if (c == '/' && source.peek_next() == '/') {
+            source.get();
+            source.get();
+            while (!source.is_eof() && source.peek() != '\n') {
+                source.get();
+            }
+            // Note: do not consume '\n' here so it can be emitted as NewLine if needed
+        } else if (c == '/' && source.peek_next() == '*') {
+            source.get();
+            source.get();
+            while (!source.is_eof()) {
+                if (source.peek() == '*' && source.peek_next() == '/') {
+                    source.get();
+                    source.get();
+                    break;
+                }
+                source.get();
+            }
+        } else {
+            break;
+        }
     }
 }
 
@@ -77,6 +98,28 @@ Token Lexer::lex_number() {
 
             while (!source.is_eof() && std::isdigit(source.peek())) {
                 text += source.get();
+            }
+        }
+    }
+
+    if (!source.is_eof()) {
+        char exp_c = source.peek();
+        if (exp_c == 'e' || exp_c == 'E') {
+            char next_c = source.peek_next();
+            if (std::isdigit(static_cast<unsigned char>(next_c))) {
+                is_real = true;
+                text += source.get(); // consume 'e' or 'E'
+                while (!source.is_eof() && std::isdigit(source.peek())) {
+                    text += source.get();
+                }
+            } else if ((next_c == '+' || next_c == '-') &&
+                       std::isdigit(static_cast<unsigned char>(source.peek_offset(2)))) {
+                is_real = true;
+                text += source.get(); // consume 'e' or 'E'
+                text += source.get(); // consume '+' or '-'
+                while (!source.is_eof() && std::isdigit(source.peek())) {
+                    text += source.get();
+                }
             }
         }
     }

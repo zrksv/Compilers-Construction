@@ -540,6 +540,56 @@ void test_sample_18_arrow() {
     std::cout << "[PASS] test_sample_18_arrow (18_arrow_routines.imp)\n";
 }
 
+void test_scientific_notation() {
+    std::string code = 
+        "routine main() is\n"
+        "    var a : real is 1e5;\n"
+        "    var b : real is 1.5e-3;\n"
+        "    var c is 2.0E+10;\n"
+        "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(ok && "Failed to parse scientific notation in parser!");
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 1);
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(routine != nullptr && routine->body.size() == 3);
+    auto* v1 = dynamic_cast<VariableDeclaration*>(routine->body[0].get());
+    auto* r1 = dynamic_cast<RealLiteral*>(v1->expression.get());
+    assert(r1 != nullptr && r1->value == 1e5);
+    auto* v2 = dynamic_cast<VariableDeclaration*>(routine->body[1].get());
+    auto* r2 = dynamic_cast<RealLiteral*>(v2->expression.get());
+    assert(r2 != nullptr && r2->value == 1.5e-3);
+    auto* v3 = dynamic_cast<VariableDeclaration*>(routine->body[2].get());
+    auto* r3 = dynamic_cast<RealLiteral*>(v3->expression.get());
+    assert(r3 != nullptr && r3->value == 2.0e10);
+    std::cout << "[PASS] test_scientific_notation\n";
+}
+
+void test_comments() {
+    std::string code = 
+        "// Program with comments\n"
+        "/* Multi-line header\n"
+        "   describing the routine */\n"
+        "routine main() is\n"
+        "    // Declare variable x\n"
+        "    var x : integer is /* initial value */ 10;\n"
+        "    /* Check condition */\n"
+        "    if x > 5 then // inline condition comment\n"
+        "        print x; // print x\n"
+        "    end // end of if\n"
+        "end // end of main\n";
+
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(ok && "Parsing failed for program with comments!");
+    assert(driver.get_ast() != nullptr);
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1);
+    std::cout << "[PASS] test_comments (single-line and multi-line in parser)\n";
+}
+
 void test_sample_20_matrix() {
     ParserDriver driver;
     bool ok = parse_sample_helper(driver, "tests/samples/20_array_of_array.imp");
@@ -1204,6 +1254,8 @@ int main() {
     test_sample_16_records();
     test_sample_18_arrow();
     test_sample_20_matrix();
+    test_comments();
+    test_scientific_notation();
 
     test_error_recovery_multiple_statements();
     test_error_recovery_top_level();

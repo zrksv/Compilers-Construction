@@ -190,7 +190,7 @@ void test_keywords() {
 }
 
 void test_numbers() {
-    std::string code = "0 42 12345 3.14 0.05 1..10";
+    std::string code = "0 42 12345 3.14 0.05 1..10 1e5 1.5e-3 2.0E+10 3e-4";
     auto types = tokenize_types(code);
 
     assert(types[0] == TokenType::IntegerLiteral);
@@ -201,6 +201,10 @@ void test_numbers() {
     assert(types[5] == TokenType::IntegerLiteral);
     assert(types[6] == TokenType::Range);
     assert(types[7] == TokenType::IntegerLiteral);
+    assert(types[8] == TokenType::RealLiteral);
+    assert(types[9] == TokenType::RealLiteral);
+    assert(types[10] == TokenType::RealLiteral);
+    assert(types[11] == TokenType::RealLiteral);
     std::cout << "[PASS] test_numbers\n";
 }
 
@@ -267,7 +271,57 @@ void test_errors() {
     std::cout << "\n[PASS] test_errors\n\n";
 }
 
+void test_comments() {
+    std::string code = 
+        "// line comment\n"
+        "var /* inline comment */ x is 10; // trailing comment\n"
+        "/*\n"
+        "   multi-line\n"
+        "   comment\n"
+        "*/\n"
+        "var y is x / 2;\n"
+        "if x /= y then // not equal\n"
+        "    print 1;\n"
+        "end // eof comment without newline";
+    auto types = tokenize_types(code);
+
+    std::vector<TokenType> expected = {
+        TokenType::NewLine,
+        TokenType::Var,
+        TokenType::Identifier,
+        TokenType::Is,
+        TokenType::IntegerLiteral,
+        TokenType::Semicolon,
+        TokenType::NewLine,
+        TokenType::NewLine,
+        TokenType::Var,
+        TokenType::Identifier,
+        TokenType::Is,
+        TokenType::Identifier,
+        TokenType::Div,
+        TokenType::IntegerLiteral,
+        TokenType::Semicolon,
+        TokenType::NewLine,
+        TokenType::If,
+        TokenType::Identifier,
+        TokenType::NotEqual,
+        TokenType::Identifier,
+        TokenType::Then,
+        TokenType::NewLine,
+        TokenType::Print,
+        TokenType::IntegerLiteral,
+        TokenType::Semicolon,
+        TokenType::NewLine,
+        TokenType::End,
+        TokenType::Eof
+    };
+
+    assert(types == expected);
+    std::cout << "[PASS] test_comments\n";
+}
+
 int main() {
+    test_comments();
     test_errors();
     test_keywords();
     test_numbers();
