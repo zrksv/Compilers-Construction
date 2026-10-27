@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.29)
 project(Compilers_Construction)
 
 set(CMAKE_CXX_STANDARD 20)
+add_compile_definitions(PROJECT_BUILD_DIR="${CMAKE_BINARY_DIR}")
 include_directories(src)
 include_directories(src/common)
 include_directories(src/lexer)
@@ -23,14 +24,6 @@ add_executable(Compilers_Construction
         src/ast/ASTPrinter.cpp
 )
 target_link_libraries(Compilers_Construction PRIVATE parser)
-
-add_executable(lexer_tests
-        src/lexer/tests/test_lexer.cpp
-        tests/TestUtils.cpp
-        src/lexer/Token.cpp
-        src/common/SourceManager.cpp
-        src/lexer/Lexer.cpp
-)
 
 enable_testing()
 
