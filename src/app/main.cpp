@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <iomanip>
+#include <vector>
 #include "SourceManager.hpp"
 #include "Lexer.hpp"
 #include "ParserDriver.hpp"
@@ -10,16 +10,17 @@
 using namespace std;
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        cerr << "Usage: fair_compiler <source.imp> [--tokens] [routine_name] [args...]\n";
+    if (argc < 3) {
+        cerr << "Error: routine name is not specified.\n";
+        cerr << "Usage: fair_compiler <source.imp> <routine_name> [args...]\n";
         return 1;
     }
 
     string filename = argv[1];
-    bool print_tokens = false;
-
-    if (argc >= 3 && string(argv[2]) == "--tokens") {
-        print_tokens = true;
+    string routine_name = argv[2];
+    vector<string> routine_args;
+    for (int i = 3; i < argc; ++i) {
+        routine_args.push_back(argv[i]);
     }
 
     ifstream file(filename);
@@ -34,36 +35,57 @@ int main(int argc, char* argv[]) {
     SourceManager sm(buffer.str());
     Lexer lexer(sm);
 
-    if (print_tokens) {
-        cout << "--- Tokens ---\n";
-        Token tok;
-        do {
-            tok = lexer.next_token();
-            cout << left << setw(8) << (to_string(tok.location.row) + ":" + to_string(tok.location.column))
-                 << " " << setw(18) << token_to_string(tok.type)
-                 << " '" << tok.text << "'\n";
-        } while (tok.type != TokenType::Eof);
-        return 0;
-    }
-
     ParserDriver driver;
     bool parse_success = driver.parse(lexer);
 
-    if (parse_success) {
-        cout << "Parsing successful! AST:\n";
-        auto ast = driver.get_ast();
-        if (ast) {
-            AstPrinter printer(cout);
-            ast->accept(printer);
-            cout << "\n";
-        }
-    } else {
+    if (!parse_success) {
         cerr << "Parsing failed due to syntax errors:\n";
         for (const auto& err : driver.get_errors()) {
             cerr << "Error at " << err.location.row << ":" << err.location.column
                  << " - " << err.message << "\n";
         }
         return 1;
+    }
+
+    // Check if the requested routine exists in the program
+    auto* program = dynamic_cast<Program*>(driver.get_ast());
+    RoutineDeclaration* target_routine = nullptr;
+
+    if (program) {
+        for (const auto& decl : program->declarations) {
+            if (auto* r = dynamic_cast<RoutineDeclaration*>(decl.get())) {
+                if (r->name == routine_name) {
+                    target_routine = r;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!target_routine) {
+        cerr << "Error: routine '" << routine_name << "' not found in '" << filename << "'.\n";
+        return 1;
+    }
+
+    if (target_routine->body_type == RoutineBodyType::Forward) {
+        cerr << "Error: routine '" << routine_name << "' is only forward-declared without a body.\n";
+        return 1;
+    }
+
+    if (routine_args.size() != target_routine->parameters.size()) {
+        cerr << "Error: routine '" << routine_name << "' expects "
+             << target_routine->parameters.size() << " argument(s), but "
+             << routine_args.size() << " provided.\n";
+        return 1;
+    }
+
+    cout << "Parsing successful! Routine '" << routine_name << "' verified for execution.\n";
+    cout << "AST:\n";
+    auto ast = driver.get_ast();
+    if (ast) {
+        AstPrinter printer(cout);
+        ast->accept(printer);
+        cout << "\n";
     }
 
     return 0;
