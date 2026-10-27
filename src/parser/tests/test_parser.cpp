@@ -540,6 +540,30 @@ void test_sample_18_arrow() {
     std::cout << "[PASS] test_sample_18_arrow (18_arrow_routines.imp)\n";
 }
 
+void test_comments() {
+    std::string code = 
+        "// Program with comments\n"
+        "/* Multi-line header\n"
+        "   describing the routine */\n"
+        "routine main() is\n"
+        "    // Declare variable x\n"
+        "    var x : integer is /* initial value */ 10;\n"
+        "    /* Check condition */\n"
+        "    if x > 5 then // inline condition comment\n"
+        "        print x; // print x\n"
+        "    end // end of if\n"
+        "end // end of main\n";
+
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(ok && "Parsing failed for program with comments!");
+    assert(driver.get_ast() != nullptr);
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr);
+    assert(prog->declarations.size() == 1);
+    std::cout << "[PASS] test_comments (single-line and multi-line in parser)\n";
+}
+
 void test_sample_20_matrix() {
     ParserDriver driver;
     bool ok = parse_sample_helper(driver, "tests/samples/20_array_of_array.imp");
@@ -570,6 +594,7 @@ int main() {
     test_sample_16_records();
     test_sample_18_arrow();
     test_sample_20_matrix();
+    test_comments();
 
     std::cout << "All parser tests passed successfully!\n";
     return 0;

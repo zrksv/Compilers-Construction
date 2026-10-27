@@ -3,10 +3,31 @@
 #include <unordered_map>
 
 void Lexer::skip_whitespaces() {
-    char c = source.peek();
-    while (!source.is_eof() && (c == ' ' || c == '\t' || c == '\r')) {
-        source.get();
-        c = source.peek();
+    while (!source.is_eof()) {
+        char c = source.peek();
+        if (c == ' ' || c == '\t' || c == '\r') {
+            source.get();
+        } else if (c == '/' && source.peek_next() == '/') {
+            source.get();
+            source.get();
+            while (!source.is_eof() && source.peek() != '\n') {
+                source.get();
+            }
+            // Note: do not consume '\n' here so it can be emitted as NewLine if needed
+        } else if (c == '/' && source.peek_next() == '*') {
+            source.get();
+            source.get();
+            while (!source.is_eof()) {
+                if (source.peek() == '*' && source.peek_next() == '/') {
+                    source.get();
+                    source.get();
+                    break;
+                }
+                source.get();
+            }
+        } else {
+            break;
+        }
     }
 }
 
