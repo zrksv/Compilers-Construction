@@ -21,6 +21,13 @@ char SourceManager::peek_next() const {
     return source[cursor + 1];
 }
 
+char SourceManager::peek_offset(size_t offset) const {
+    if (cursor + offset >= source.size()) {
+        return '\0';
+    }
+    return source[cursor + offset];
+}
+
 Location SourceManager::get_location() const {
     return location;
 }

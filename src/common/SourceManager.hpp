@@ -19,6 +19,7 @@ public:
     }
     char peek() const;
     char peek_next() const;
+    char peek_offset(size_t offset) const;
     char get();
     bool is_eof() const;
     Location get_location() const;

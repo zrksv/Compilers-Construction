@@ -190,7 +190,7 @@ void test_keywords() {
 }
 
 void test_numbers() {
-    std::string code = "0 42 12345 3.14 0.05 1..10";
+    std::string code = "0 42 12345 3.14 0.05 1..10 1e5 1.5e-3 2.0E+10 3e-4";
     auto types = tokenize_types(code);
 
     assert(types[0] == TokenType::IntegerLiteral);
@@ -201,6 +201,10 @@ void test_numbers() {
     assert(types[5] == TokenType::IntegerLiteral);
     assert(types[6] == TokenType::Range);
     assert(types[7] == TokenType::IntegerLiteral);
+    assert(types[8] == TokenType::RealLiteral);
+    assert(types[9] == TokenType::RealLiteral);
+    assert(types[10] == TokenType::RealLiteral);
+    assert(types[11] == TokenType::RealLiteral);
     std::cout << "[PASS] test_numbers\n";
 }
 

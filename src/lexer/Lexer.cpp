@@ -102,6 +102,28 @@ Token Lexer::lex_number() {
         }
     }
 
+    if (!source.is_eof()) {
+        char exp_c = source.peek();
+        if (exp_c == 'e' || exp_c == 'E') {
+            char next_c = source.peek_next();
+            if (std::isdigit(static_cast<unsigned char>(next_c))) {
+                is_real = true;
+                text += source.get(); // consume 'e' or 'E'
+                while (!source.is_eof() && std::isdigit(source.peek())) {
+                    text += source.get();
+                }
+            } else if ((next_c == '+' || next_c == '-') &&
+                       std::isdigit(static_cast<unsigned char>(source.peek_offset(2)))) {
+                is_real = true;
+                text += source.get(); // consume 'e' or 'E'
+                text += source.get(); // consume '+' or '-'
+                while (!source.is_eof() && std::isdigit(source.peek())) {
+                    text += source.get();
+                }
+            }
+        }
+    }
+
     TokenType type = is_real ? TokenType::RealLiteral : TokenType::IntegerLiteral;
     return Token{type, text, loc};
 }

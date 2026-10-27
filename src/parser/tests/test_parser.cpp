@@ -540,6 +540,32 @@ void test_sample_18_arrow() {
     std::cout << "[PASS] test_sample_18_arrow (18_arrow_routines.imp)\n";
 }
 
+void test_scientific_notation() {
+    std::string code = 
+        "routine main() is\n"
+        "    var a : real is 1e5;\n"
+        "    var b : real is 1.5e-3;\n"
+        "    var c is 2.0E+10;\n"
+        "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(ok && "Failed to parse scientific notation in parser!");
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 1);
+    auto* routine = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(routine != nullptr && routine->body.size() == 3);
+    auto* v1 = dynamic_cast<VariableDeclaration*>(routine->body[0].get());
+    auto* r1 = dynamic_cast<RealLiteral*>(v1->expression.get());
+    assert(r1 != nullptr && r1->value == 1e5);
+    auto* v2 = dynamic_cast<VariableDeclaration*>(routine->body[1].get());
+    auto* r2 = dynamic_cast<RealLiteral*>(v2->expression.get());
+    assert(r2 != nullptr && r2->value == 1.5e-3);
+    auto* v3 = dynamic_cast<VariableDeclaration*>(routine->body[2].get());
+    auto* r3 = dynamic_cast<RealLiteral*>(v3->expression.get());
+    assert(r3 != nullptr && r3->value == 2.0e10);
+    std::cout << "[PASS] test_scientific_notation\n";
+}
+
 void test_comments() {
     std::string code = 
         "// Program with comments\n"
@@ -595,6 +621,7 @@ int main() {
     test_sample_18_arrow();
     test_sample_20_matrix();
     test_comments();
+    test_scientific_notation();
 
     std::cout << "All parser tests passed successfully!\n";
     return 0;
