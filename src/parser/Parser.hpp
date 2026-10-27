@@ -32,7 +32,7 @@
 
 
 /**
- ** \file src/parser/fallback/Parser.hpp
+ ** \file src/parser/Parser.hpp
  ** Define the yy::parser class.
  */
 
@@ -42,8 +42,8 @@
 // especially those whose name start with YY_ or yy_.  They are
 // private implementation details that can be changed or removed.
 
-#ifndef YY_YY_SRC_PARSER_FALLBACK_PARSER_HPP_INCLUDED
-# define YY_YY_SRC_PARSER_FALLBACK_PARSER_HPP_INCLUDED
+#ifndef YY_YY_SRC_PARSER_PARSER_HPP_INCLUDED
+# define YY_YY_SRC_PARSER_PARSER_HPP_INCLUDED
 // "%code requires" blocks.
 #line 16 "src/parser/Parser.yy"
 
@@ -61,7 +61,7 @@
 
 class ParserDriver;
 
-#line 65 "src/parser/fallback/Parser.hpp"
+#line 65 "src/parser/Parser.hpp"
 
 # include <cassert>
 # include <cstdlib> // std::abort
@@ -202,7 +202,7 @@ class ParserDriver;
 
 #line 6 "src/parser/Parser.yy"
 namespace yy {
-#line 206 "src/parser/fallback/Parser.hpp"
+#line 206 "src/parser/Parser.hpp"
 
 
 
@@ -2934,9 +2934,9 @@ switch (yykind)
 
 #line 6 "src/parser/Parser.yy"
 } // yy
-#line 2938 "src/parser/fallback/Parser.hpp"
+#line 2938 "src/parser/Parser.hpp"
 
 
 
 
-#endif // !YY_YY_SRC_PARSER_FALLBACK_PARSER_HPP_INCLUDED
+#endif // !YY_YY_SRC_PARSER_PARSER_HPP_INCLUDED
