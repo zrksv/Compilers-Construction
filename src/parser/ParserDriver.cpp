@@ -1,7 +1,7 @@
 #include "ParserDriver.hpp"
 #include <fstream>
 #include <sstream>
-#include "Parser.hpp"
+#include <Parser.hpp>
 
 bool ParserDriver::parse(SourceManager& source_manager) {
     Lexer l(source_manager);
@@ -31,14 +31,46 @@ yy::Parser::symbol_type yylex(ParserDriver& driver) {
         return yy::Parser::make_YYEOF(Location{0, 0});
     }
 
+    int& paren_depth = driver.get_paren_depth();
+
     while (true) {
         Token tok = lex->next_token();
+
+        switch (tok.type) {
+            case TokenType::LeftPar:
+                ++paren_depth;
+                break;
+            case TokenType::RightPar:
+                if (paren_depth > 0) --paren_depth;
+                break;
+            case TokenType::Semicolon:
+            case TokenType::Is:
+            case TokenType::Loop:
+            case TokenType::Then:
+            case TokenType::Else:
+            case TokenType::Routine:
+            case TokenType::Type:
+            case TokenType::While:
+            case TokenType::For:
+            case TokenType::If:
+            case TokenType::Print:
+            case TokenType::Return:
+            case TokenType::Assign:
+            case TokenType::Arrow:
+                paren_depth = 0;
+                break;
+            default:
+                break;
+        }
 
         switch (tok.type) {
             case TokenType::Eof:
                 return yy::Parser::make_YYEOF(tok.location);
 
             case TokenType::NewLine:
+                if (paren_depth > 0) {
+                    continue;
+                }
                 return yy::Parser::make_NEWLINE(tok.location);
 
             case TokenType::Semicolon:
@@ -174,7 +206,7 @@ yy::Parser::symbol_type yylex(ParserDriver& driver) {
             case TokenType::Unknown:
             default:
                 driver.error(tok.location, "Unknown or unexpected token: '" + tok.text + "'");
-                break;
+                return yy::Parser::make_YYerror(tok.location);
         }
     }
 }
@@ -182,6 +214,7 @@ yy::Parser::symbol_type yylex(ParserDriver& driver) {
 bool ParserDriver::parse(Lexer& lex) {
     clear_errors();
     ast_root.reset();
+    paren_depth = 0;
     this->lexer = &lex;
 
     yy::Parser parser(*this);

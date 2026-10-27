@@ -7,17 +7,6 @@ include_directories(src/common)
 include_directories(src/lexer)
 include_directories(src/ast)
 include_directories(src/parser)
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
-
-find_package(BISON QUIET)
-
-if(BISON_FOUND)
-    BISON_TARGET(MyParser src/parser/Parser.yy ${CMAKE_CURRENT_BINARY_DIR}/Parser.cpp)
-    set(PARSER_GEN_SOURCES ${BISON_MyParser_OUTPUTS})
-else()
-    message(STATUS "Bison not found; using pre-generated src/parser/Parser.cpp")
-    set(PARSER_GEN_SOURCES src/parser/Parser.cpp)
-endif()
 
 add_executable(Compilers_Construction
         src/app/main.cpp
@@ -32,10 +21,8 @@ add_executable(Compilers_Construction
         src/ast/AST.cpp
         src/ast/ASTPrinter.hpp
         src/ast/ASTPrinter.cpp
-        src/parser/ParserDriver.hpp
-        src/parser/ParserDriver.cpp
-        ${PARSER_GEN_SOURCES}
 )
+target_link_libraries(Compilers_Construction PRIVATE parser)
 
 add_executable(lexer_tests
         src/lexer/tests/test_lexer.cpp
