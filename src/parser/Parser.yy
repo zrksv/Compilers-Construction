@@ -196,10 +196,6 @@ parameter:
     {
         $$ = std::make_unique<ParameterDeclaration>($1, $3, @1);
     }
-  | IDENTIFIER
-    {
-        $$ = std::make_unique<ParameterDeclaration>($1, @1);
-    }
   ;
 
 optional_return_type:

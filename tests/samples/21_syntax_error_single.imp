@@ -1,0 +1,7 @@
+routine square(x : integer) : integer => x * x;
+
+routine main() is
+	var a : integer is 5;
+	var b : integer is a +;
+	print square(a);
+end

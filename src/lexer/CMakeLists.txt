@@ -1,5 +1,5 @@
 add_library(lexer STATIC Lexer.cpp Token.cpp)
-
-target_link_libraries(lexer PRIVATE common)
+target_include_directories(lexer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(lexer PUBLIC common)
 
 add_subdirectory(tests)

@@ -5,6 +5,7 @@
 #include <filesystem>
 #include "../ASTPrinter.hpp"
 #include "../AST.hpp"
+#include "TestUtils.hpp"
 
 std::string ast_to_string(AstNode* root) {
     std::ostringstream oss;
@@ -14,11 +15,7 @@ std::string ast_to_string(AstNode* root) {
 }
 
 void write_ast_to_file(const std::string& output_filename, AstNode* root) {
-    std::filesystem::path sourcePath(__FILE__);
-    std::filesystem::path outDir = sourcePath.parent_path() / "output";
-    std::error_code ec;
-    std::filesystem::create_directories(outDir, ec);
-    std::filesystem::path outPath = outDir / output_filename;
+    std::filesystem::path outPath = test_output_dir() / output_filename;
 
     std::ofstream outFile(outPath);
     if (outFile.is_open()) {
@@ -114,12 +111,12 @@ void test_if_statement() {
 }
 
 // --- UNIT TEST 3: Routine Declaration (Block body) ---
-// Checks: routine calculate_sum(a, b) : integer is return a + b; end
+// Checks: routine calculate_sum(a : integer, b : integer) : integer is return a + b; end
 void test_routine_declaration() {
     Location loc{3, 1};
     std::vector<std::unique_ptr<ParameterDeclaration>> params;
-    params.push_back(std::make_unique<ParameterDeclaration>("a", loc));
-    params.push_back(std::make_unique<ParameterDeclaration>("b", loc));
+    params.push_back(std::make_unique<ParameterDeclaration>("a", std::make_unique<PrimitiveTypeNode>("integer", loc), loc));
+    params.push_back(std::make_unique<ParameterDeclaration>("b", std::make_unique<PrimitiveTypeNode>("integer", loc), loc));
     
     // Body: return a + b
     auto varA = std::make_unique<Identifier>("a", loc);
@@ -146,7 +143,7 @@ void test_routine_declaration() {
     assert(routine->body.size() == 1);
 
     std::string expected = 
-        "RoutineDeclaration(calculate_sum) params: [a, b] returns: integer\n"
+        "RoutineDeclaration(calculate_sum) params: [a : integer, b : integer] returns: integer\n"
         "└── Body:\n"
         "    └── ReturnStatement\n"
         "        └── Value: BinaryExpr(+)\n"
