@@ -6,9 +6,9 @@
 #include <string>
 #include <cassert>
 #include <filesystem>
-#include "common/SourceManager.hpp"
-#include "lexer/Lexer.hpp"
-#include "../../../tests/TestUtils.hpp"
+#include "SourceManager.hpp"
+#include "Lexer.hpp"
+#include "TestUtils.hpp"
 
 void report_unknown_token(const std::string& code,
                           const Token& tok,
@@ -82,9 +82,7 @@ void run_sample(const std::string& sample_name, bool to_file = false) {
     std::string out_path;
 
     if (to_file) {
-        std::filesystem::path out_dir = get_build_output_dir("lexer");
-        std::filesystem::create_directories(out_dir);
-        out_path = (out_dir / (stem + ".txt")).string();
+        out_path = (test_output_dir() / (stem + ".txt")).string();
         out_file.open(out_path, std::ios::out | std::ios::trunc);
         if (!out_file.is_open()) {
             std::cerr << "[ERROR] Could not open output file: " << out_path << "\n";
@@ -320,12 +318,56 @@ void test_comments() {
     std::cout << "[PASS] test_comments\n";
 }
 
+void test_newlines() {
+    auto types = tokenize_types("  \t\n  \n");
+    assert(types.size() == 3);
+    assert(types[0] == TokenType::NewLine);
+    assert(types[1] == TokenType::NewLine);
+    assert(types[2] == TokenType::Eof);
+    std::cout << "[PASS] test_newlines\n";
+}
+
+void test_line_continuation() {
+    auto types = tokenize_types("a \\\nb\\  \t\r\n+ c\n\\\n");
+    assert(types.size() == 6);
+    assert(types[0] == TokenType::Identifier);
+    assert(types[1] == TokenType::Identifier);
+    assert(types[2] == TokenType::Plus);
+    assert(types[3] == TokenType::Identifier);
+    assert(types[4] == TokenType::NewLine);
+    assert(types[5] == TokenType::Eof);
+
+    SourceManager sm("x \\\n  y");
+    Lexer lexer(sm);
+    assert(lexer.next_token().location.row == 1);
+    Token y = lexer.next_token();
+    assert(y.type == TokenType::Identifier && y.text == "y");
+    assert(y.location.row == 2 && y.location.column == 3);
+
+    auto stray = tokenize_types("a \\ b");
+    assert(stray.size() == 4);
+    assert(stray[1] == TokenType::Unknown);
+
+    auto at_eof = tokenize_types("a \\");
+    assert(at_eof.size() == 2);
+    assert(at_eof[0] == TokenType::Identifier);
+    assert(at_eof[1] == TokenType::Eof);
+
+    auto at_eof_spaces = tokenize_types("a\\ \t\r");
+    assert(at_eof_spaces.size() == 2);
+    assert(at_eof_spaces[1] == TokenType::Eof);
+
+    std::cout << "[PASS] test_line_continuation\n";
+}
+
 int main() {
     test_comments();
     test_errors();
     test_keywords();
     test_numbers();
     test_operators();
+    test_newlines();
+    test_line_continuation();
 
     run_sample("01_print.imp", true);
     run_sample("02_variables.imp", true);

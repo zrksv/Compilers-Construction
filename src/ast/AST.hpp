@@ -329,11 +329,6 @@ public:
         this->location = loc;
     }
 
-    ParameterDeclaration(std::string name, Location loc)
-        : name(std::move(name)), type(nullptr) {
-        this->location = loc;
-    }
-
     void accept(AstPrinter& printer) override;
 };
 

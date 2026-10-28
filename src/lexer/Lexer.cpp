@@ -25,10 +25,27 @@ void Lexer::skip_whitespaces() {
                 }
                 source.get();
             }
-        } else {
+        } else if (c != '\\' || !skip_line_continuation()) {
             break;
         }
     }
+}
+
+bool Lexer::skip_line_continuation() {
+    size_t offset = 1;
+    char c = source.peek_offset(offset);
+    while (c == ' ' || c == '\t' || c == '\r') {
+        c = source.peek_offset(++offset);
+    }
+    if (c == '\n') {
+        ++offset;
+    } else if (c != '\0') {
+        return false;
+    }
+    for (size_t i = 0; i < offset; ++i) {
+        source.get();
+    }
+    return true;
 }
 
 Token Lexer::lex_word() {

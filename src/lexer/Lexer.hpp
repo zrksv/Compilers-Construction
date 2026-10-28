@@ -7,6 +7,7 @@ private:
     SourceManager& source;
 
     void skip_whitespaces();
+    bool skip_line_continuation();
     Token lex_word();
     Token lex_number();
     Token lex_oper();

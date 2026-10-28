@@ -1,0 +1,5 @@
+routine main() is
+	var a : integer is 10 @ 2;
+	var b : integer is a \ 2;
+	print a, b $;
+end

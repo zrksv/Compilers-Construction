@@ -18,13 +18,12 @@ else()
     set(PARSER_GEN_SOURCES ${PARSER_GEN_DIR}/Parser.cpp)
 endif()
 
-add_library(parser
+add_library(parser STATIC
     ParserDriver.cpp
     ${PARSER_GEN_SOURCES}
 )
-
 target_include_directories(parser PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(parser PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_include_directories(parser BEFORE PRIVATE ${PARSER_GEN_DIR})
+target_link_libraries(parser PUBLIC lexer ast common)
 
 add_subdirectory(tests)

@@ -23,28 +23,16 @@ std::string read_file(const std::string& path) {
 }
 
 std::filesystem::path find_tests_dir() {
-    std::filesystem::path cur = std::filesystem::current_path();
-    for (int i = 0; i < 5; ++i) {
-        if (std::filesystem::exists(cur / "tests" / "samples")) return cur / "tests";
-        if (std::filesystem::exists(cur / "samples")) return cur;
-        if (!cur.has_parent_path()) break;
-        cur = cur.parent_path();
-    }
-    return "tests";
+    return std::filesystem::path(IMP_SOURCE_DIR) / "tests";
+}
+
+std::filesystem::path test_output_dir(std::source_location caller) {
+    std::filesystem::path dir = std::filesystem::path(caller.file_name()).parent_path() / "output";
+    std::filesystem::create_directories(dir);
+    return dir;
 }
 
 std::string resolve_path(const std::string& name) {
     std::string file = name.ends_with(".imp") ? name : name + ".imp";
     return (find_tests_dir() / "samples" / file).string();
-}
-
-std::filesystem::path get_build_output_dir(const std::string& subfolder) {
-#ifdef PROJECT_BUILD_DIR
-    std::filesystem::path base = std::filesystem::path(PROJECT_BUILD_DIR) / "tests";
-#else
-    std::filesystem::path base = std::filesystem::current_path();
-#endif
-    std::filesystem::path out_dir = subfolder.empty() ? (base / "output") : (base / "output" / subfolder);
-    std::filesystem::create_directories(out_dir);
-    return out_dir;
 }

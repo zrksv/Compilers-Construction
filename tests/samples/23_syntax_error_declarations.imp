@@ -1,0 +1,16 @@
+type point is record
+	var x : integer;
+	var y integer;
+end
+
+routine shift(p : point, dx) is
+	p.x := p.x + dx;
+end
+
+routine scale(p : point, k : integer) p.x := p.x * k end
+
+routine main() is
+	var p : point;
+	p.x := 1;
+	print p.x;
+end

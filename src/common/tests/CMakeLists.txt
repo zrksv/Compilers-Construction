@@ -1,3 +1,1 @@
-add_executable(test_source_manager test_source_manager.cpp)
-
-target_link_libraries(test_source_manager PRIVATE common lexer)
+add_imp_test(TARGET test_source_manager NAME SourceManagerTest SOURCES test_source_manager.cpp LIBS common)

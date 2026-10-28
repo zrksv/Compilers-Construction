@@ -1,34 +1,35 @@
 #include <iostream>
 #include <cassert>
 #include <sstream>
+#include <fstream>
+#include <iomanip>
+#include <filesystem>
 #include <vector>
 #include "../ParserDriver.hpp"
 #include "../../ast/AST.hpp"
 #include "../../ast/ASTPrinter.hpp"
+#include "TestUtils.hpp"
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 
-static bool parse_sample_helper(ParserDriver& driver, const std::string& sample_rel_path) {
-    std::vector<std::string> prefixes = {
-        "",
-        "../",
-        "../../",
-        "../../../",
-        "../../../../",
-        "../../../../Compilers-Construction/",
-        "../../../Compilers-Construction/",
-        "../../Compilers-Construction/",
-        "../Compilers-Construction/"
-    };
-    for (const auto& pre : prefixes) {
-        if (driver.parse_file(pre + sample_rel_path)) {
-            return true;
-        }
-        driver.clear_errors();
+void write_errors_to_file(const std::string& test_name, const std::string& code, const ParserDriver& driver) {
+    std::ofstream out(test_output_dir() / (test_name + ".txt"), std::ios::out | std::ios::trunc);
+    assert(out.is_open() && "Cannot open output file!");
+
+    out << "=== " << test_name << " ===\n--- Source ---\n";
+    std::istringstream lines(code);
+    std::string line;
+    for (size_t row = 1; std::getline(lines, line); ++row) {
+        out << std::setw(3) << row << " | " << line << "\n";
     }
-    return false;
+
+    out << "--- Errors (" << driver.get_errors().size() << ") ---\n";
+    for (const auto& err : driver.get_errors()) {
+        out << "Error at " << err.location.row << ":" << err.location.column
+            << " - " << err.message << "\n";
+    }
 }
 
 void test_operator_precedence() {
@@ -153,7 +154,7 @@ void test_syntax_error() {
 
 void test_sample_01() {
     ParserDriver driver;
-    bool ok = parse_sample_helper(driver, "tests/samples/01_print.imp");
+    bool ok = driver.parse_file(resolve_path("01_print.imp"));
     assert(ok);
 
     auto* prog = dynamic_cast<Program*>(driver.get_ast());
@@ -174,7 +175,7 @@ void test_sample_01() {
 
 void test_sample_08() {
     ParserDriver driver;
-    bool ok = parse_sample_helper(driver, "tests/samples/08_for_loop.imp");
+    bool ok = driver.parse_file(resolve_path("08_for_loop.imp"));
     assert(ok && "Failed to parse 08_for_loop.imp");
 
     auto* prog = dynamic_cast<Program*>(driver.get_ast());
@@ -521,21 +522,21 @@ void test_for_loop_array() {
 
 void test_sample_10_forward() {
     ParserDriver driver;
-    bool ok = parse_sample_helper(driver, "tests/samples/10_forward_declaration.imp");
+    bool ok = driver.parse_file(resolve_path("10_forward_declaration.imp"));
     assert(ok && "Failed to parse 10_forward_declaration.imp");
     std::cout << "[PASS] test_sample_10_forward (10_forward_declaration.imp)\n";
 }
 
 void test_sample_16_records() {
     ParserDriver driver;
-    bool ok = parse_sample_helper(driver, "tests/samples/16_records.imp");
+    bool ok = driver.parse_file(resolve_path("16_records.imp"));
     assert(ok && "Failed to parse 16_records.imp");
     std::cout << "[PASS] test_sample_16_records (16_records.imp)\n";
 }
 
 void test_sample_18_arrow() {
     ParserDriver driver;
-    bool ok = parse_sample_helper(driver, "tests/samples/18_arrow_routines.imp");
+    bool ok = driver.parse_file(resolve_path("18_arrow_routines.imp"));
     assert(ok && "Failed to parse 18_arrow_routines.imp");
     std::cout << "[PASS] test_sample_18_arrow (18_arrow_routines.imp)\n";
 }
@@ -592,7 +593,7 @@ void test_comments() {
 
 void test_sample_20_matrix() {
     ParserDriver driver;
-    bool ok = parse_sample_helper(driver, "tests/samples/20_array_of_array.imp");
+    bool ok = driver.parse_file(resolve_path("20_array_of_array.imp"));
     assert(ok && "Failed to parse 20_array_of_array.imp");
     std::cout << "[PASS] test_sample_20_matrix (20_array_of_array.imp)\n";
 }
@@ -607,6 +608,7 @@ void test_error_recovery_multiple_statements() {
                        "end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     auto* prog = dynamic_cast<Program*>(driver.get_ast());
     assert(!ok && "Expected parsing to fail due to syntax errors");
     assert(driver.has_errors() && "Expected parser to report errors");
@@ -646,6 +648,7 @@ void test_error_recovery_top_level() {
                        "end;\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok && "Expected parsing to fail due to top-level syntax error");
     assert(driver.has_errors());
     assert(!driver.get_errors().empty());
@@ -676,6 +679,7 @@ void test_error_recovery_record_fields() {
                        "end;\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok && "Expected parsing to fail due to record field error");
     assert(driver.has_errors());
     assert(!driver.get_errors().empty());
@@ -712,6 +716,7 @@ void test_error_recovery_nested_block() {
                        "end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok && "Expected parsing to fail due to nested syntax error");
     assert(driver.has_errors());
 
@@ -747,6 +752,7 @@ void test_error_recovery_single_separator() {
                        "var c is 3\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 1 && "Only the broken line must be reported");
 
@@ -782,6 +788,7 @@ void test_error_recovery_keeps_previous_items() {
                        "end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 3);
 
@@ -817,6 +824,7 @@ void test_error_recovery_first_item() {
                        "end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 3);
 
@@ -845,6 +853,7 @@ void test_error_recovery_last_item() {
                        "var z is";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 2);
 
@@ -878,6 +887,7 @@ void test_error_recovery_compound_headers() {
                        "routine g() is print 6 end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 3);
 
@@ -905,6 +915,7 @@ void test_error_recovery_routine_header() {
                        "routine d() is print 2 end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 3);
 
@@ -968,6 +979,7 @@ void test_error_recovery_unclosed_parenthesis() {
                        "routine g() is print 5 end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 1);
 
@@ -986,6 +998,7 @@ void test_unknown_character_top_level() {
                        "var b is 2\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 1 && "Only the lexical error must be reported");
     const auto& err = driver.get_errors()[0];
@@ -1009,6 +1022,7 @@ void test_unknown_character_in_body() {
                        "end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 1);
     assert(driver.get_errors()[0].location.row == 3);
@@ -1030,6 +1044,7 @@ void test_unknown_characters_each_reported() {
                        "var y is 3\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 2);
     for (const auto& err : driver.get_errors()) {
@@ -1132,6 +1147,7 @@ void test_error_recovery_before_else() {
                        "end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 1);
 
@@ -1156,6 +1172,7 @@ void test_error_recovery_consecutive_broken_lines() {
                        "end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 2);
     assert(driver.get_errors()[0].location.row == 2);
@@ -1185,6 +1202,7 @@ void test_error_recovery_header_without_keyword() {
                        "routine g() is print 5 end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 2);
 
@@ -1208,6 +1226,7 @@ void test_error_recovery_tokens_after_end() {
                        "routine g() is print 4 end\n";
     ParserDriver driver;
     bool ok = driver.parse(code);
+    write_errors_to_file(__func__, code, driver);
     assert(!ok);
     assert(driver.get_errors().size() == 2);
 
@@ -1229,6 +1248,94 @@ void test_error_recovery_tokens_after_end() {
     assert(g != nullptr && g->name == "g");
 
     std::cout << "[PASS] test_error_recovery_tokens_after_end\n";
+}
+
+void test_untyped_parameter_is_syntax_error() {
+    std::string code = "routine f(x) is\n"
+                       "    print x\n"
+                       "end\n"
+                       "routine g(a : integer, b) : integer => a\n"
+                       "routine main() is\n"
+                       "    print 1\n"
+                       "end\n";
+    ParserDriver driver;
+    assert(!driver.parse(code));
+    write_errors_to_file(__func__, code, driver);
+    assert(driver.get_errors().size() == 2);
+    assert(driver.get_errors()[0].location.row == 1);
+    assert(driver.get_errors()[1].location.row == 4);
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 1);
+    auto* main = dynamic_cast<RoutineDeclaration*>(prog->declarations[0].get());
+    assert(main != nullptr && main->name == "main");
+
+    std::cout << "[PASS] test_untyped_parameter_is_syntax_error\n";
+}
+
+void test_line_continuation() {
+    std::string code = "type point is \\\n"
+                       "    record var x : integer; var y : integer end\n"
+                       "routine add(a : integer, b : integer) \\\n"
+                       "    : integer => a + \\\n"
+                       "        b\n"
+                       "routine main() \\   \n"
+                       "is\n"
+                       "    var s is 1 + \\\n"
+                       "        2 * 3\n"
+                       "    if s > 0 \\\n"
+                       "        and s < 10 then print s end\n"
+                       "    for i in 1 .. \\\n"
+                       "        s reverse loop print i end\n"
+                       "    var p : point\n"
+                       "    p.x \\\n"
+                       "        := add(1, \\\n"
+                       "            2)\n"
+                       "    print s, \\\n"
+                       "        p.x\n"
+                       "end\n";
+    ParserDriver driver;
+    bool ok = driver.parse(code);
+    assert(ok && "A backslash before a newline must join the lines");
+
+    auto* prog = dynamic_cast<Program*>(driver.get_ast());
+    assert(prog != nullptr && prog->declarations.size() == 3);
+
+    auto* add = dynamic_cast<RoutineDeclaration*>(prog->declarations[1].get());
+    assert(add != nullptr && add->parameters.size() == 2 && add->return_type != nullptr);
+    auto* sum = dynamic_cast<BinaryExpr*>(add->expression_body.get());
+    assert(sum != nullptr && sum->op == BinOp::Plus);
+
+    auto* main = dynamic_cast<RoutineDeclaration*>(prog->declarations[2].get());
+    assert(main != nullptr && main->body.size() == 6);
+    auto* s = dynamic_cast<VariableDeclaration*>(main->body[0].get());
+    assert(s != nullptr);
+    auto* plus = dynamic_cast<BinaryExpr*>(s->expression.get());
+    assert(plus != nullptr && plus->op == BinOp::Plus);
+    assert(dynamic_cast<IfStatement*>(main->body[1].get()) != nullptr);
+    auto* loop = dynamic_cast<ForStatement*>(main->body[2].get());
+    assert(loop != nullptr && loop->range_end != nullptr && loop->is_reverse);
+    assert(dynamic_cast<AssignStatement*>(main->body[4].get()) != nullptr);
+    auto* print = dynamic_cast<PrintStatement*>(main->body[5].get());
+    assert(print != nullptr && print->to_print.size() == 2);
+
+    std::cout << "[PASS] test_line_continuation\n";
+}
+
+void test_line_continuation_edge_cases() {
+    ParserDriver driver;
+    assert(!driver.parse("routine main() is\n    var x is 1 \\ + 2\nend\n"));
+    assert(driver.get_errors().size() == 1);
+    assert(driver.get_errors()[0].location.row == 2);
+
+    ParserDriver blank;
+    assert(!blank.parse("routine main() is\n    var x is 1 + \\\n\n        2\nend\n"));
+
+    ParserDriver at_eof;
+    assert(at_eof.parse("routine main() is\n    print 1\nend \\"));
+    assert(at_eof.parse("var x is 1 \\  "));
+
+    std::cout << "[PASS] test_line_continuation_edge_cases\n";
 }
 
 int main() {
@@ -1270,6 +1377,8 @@ int main() {
 
     test_newline_inside_parentheses();
     test_newline_outside_parentheses();
+    test_line_continuation();
+    test_line_continuation_edge_cases();
     test_error_recovery_unclosed_parenthesis();
 
     test_unknown_character_top_level();
@@ -1279,6 +1388,7 @@ int main() {
     test_program_location_is_file_start();
     test_ast_null_after_unclosed_block_at_eof();
     test_parameterless_routine_call_requires_parentheses();
+    test_untyped_parameter_is_syntax_error();
 
     test_error_recovery_before_else();
     test_error_recovery_consecutive_broken_lines();
