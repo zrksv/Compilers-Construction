@@ -1,7 +1,3 @@
-//
-// Created by annaz on 29.10.2026.
-//
-
 #include "Type.hpp"
 
 bool Type::is_integer() const {

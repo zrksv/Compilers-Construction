@@ -17,6 +17,7 @@ add_subdirectory(src/common)
 add_subdirectory(src/lexer)
 add_subdirectory(src/ast)
 add_subdirectory(src/parser)
+add_subdirectory(src/semantics)
 add_subdirectory(src/app)
 
 add_subdirectory(tests)
