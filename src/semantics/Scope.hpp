@@ -33,4 +33,8 @@ public:
     VariableSymbol* lookup_variable(const std::string& name, bool check_parents = true);
     TypeSymbol* lookup_type(const std::string& name, bool check_parents = true);
     RoutineSymbol* lookup_routine(const std::string& name, bool check_parents = true);
+
+    const std::unordered_map<std::string, RoutineSymbol>& get_routines() const {
+        return m_routines;
+    }
 };
