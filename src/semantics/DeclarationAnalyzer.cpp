@@ -1,4 +1,5 @@
 #include "DeclarationAnalyzer.hpp"
+#include "ExpressionAnalyzer.hpp"
 #include <unordered_set>
 
 std::shared_ptr<Type> DeclarationAnalyzer::resolve_type(TypeNode* node) {
@@ -246,21 +247,6 @@ void DeclarationAnalyzer::analyze(Program* program) {
 }
 
 std::shared_ptr<Type> DeclarationAnalyzer::infer_expression_type(Expression* expr) {
-    if (!expr) {
-        return PrimitiveType::get_error();
-    }
-    if (dynamic_cast<IntLiteral*>(expr))  return PrimitiveType::get_integer();
-    if (dynamic_cast<RealLiteral*>(expr)) return PrimitiveType::get_real();
-    if (dynamic_cast<BoolLiteral*>(expr)) return PrimitiveType::get_boolean();
-
-    // (var a is b)
-    if (auto* id = dynamic_cast<Identifier*>(expr)) {
-        if (auto* sym = m_current_scope->lookup_variable(id->name)) {
-            return sym->type;
-        }
-        report_error(id->location, "Variable '" + id->name + "' is not declared");
-        return PrimitiveType::get_error();
-    }
-
-    return PrimitiveType::get_error();
+    ExpressionAnalyzer analyzer(m_current_scope, m_errors);
+    return analyzer.analyze(expr);
 }
