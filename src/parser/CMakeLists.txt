@@ -15,7 +15,9 @@ if(BISON_FOUND)
 else()
     message(STATUS "Bison >= 3.8 not found; using pre-generated src/parser/Parser.cpp")
     set(PARSER_GEN_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-    set(PARSER_GEN_SOURCES ${PARSER_GEN_DIR}/Parser.cpp)
+    set(PARSER_GEN_SOURCES ${PARSER_GEN_DIR}/Parser.cpp
+            ../semantic/Type.cpp
+            ../semantic/Type.hpp)
 endif()
 
 add_library(parser STATIC
