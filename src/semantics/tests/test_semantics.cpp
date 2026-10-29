@@ -7,6 +7,7 @@
 #include "Symbol.hpp"
 #include "Scope.hpp"
 #include "DeclarationAnalyzer.hpp"
+#include "ExpressionAnalyzer.hpp"
 #include "AST.hpp"
 
 void test_primitive_types() {
@@ -80,8 +81,8 @@ void test_records_and_nominal_equivalence() {
     auto t_real = PrimitiveType::get_real();
 
     std::vector<RecordField> fields = {
-        {"x", t_real},
-        {"y", t_real}
+            {"x", t_real},
+            {"y", t_real}
     };
 
     auto point = std::make_shared<RecordType>("Point", fields, 100);
@@ -244,6 +245,209 @@ void test_declaration_analyzer_routines_and_forward() {
     std::cout << "[PASS] test_declaration_analyzer_routines_and_forward\n";
 }
 
+void test_assignment_matrix_l07() {
+    auto t_int = PrimitiveType::get_integer();
+    auto t_real = PrimitiveType::get_real();
+    auto t_bool = PrimitiveType::get_boolean();
+
+    assert(ExpressionAnalyzer::can_assign(t_int, t_int));
+    assert(ExpressionAnalyzer::can_assign(t_int, t_real));
+    assert(ExpressionAnalyzer::can_assign(t_int, t_bool));
+
+    assert(ExpressionAnalyzer::can_assign(t_real, t_real));
+    assert(ExpressionAnalyzer::can_assign(t_real, t_int));
+    assert(ExpressionAnalyzer::can_assign(t_real, t_bool));
+
+    assert(ExpressionAnalyzer::can_assign(t_bool, t_bool));
+    assert(ExpressionAnalyzer::can_assign(t_bool, t_int));
+    assert(!ExpressionAnalyzer::can_assign(t_bool, t_real));
+
+    std::vector<RecordField> fields = {{"x", t_int}};
+    auto rec_a = std::make_shared<RecordType>("RecA", fields, 1);
+    auto rec_b = std::make_shared<RecordType>("RecB", fields, 2);
+    assert(ExpressionAnalyzer::can_assign(rec_a, rec_a));
+    assert(!ExpressionAnalyzer::can_assign(rec_a, rec_b));
+
+    auto fixed_arr = std::make_shared<ArrayType>(t_int, 5, 10);
+    auto unsized_arr = std::make_shared<ArrayType>(t_int, std::nullopt, 0);
+    assert(ExpressionAnalyzer::can_assign(unsized_arr, fixed_arr));
+
+    std::cout << "[PASS] test_assignment_matrix_l07\n";
+}
+
+void test_expression_operators() {
+    auto scope = std::make_shared<Scope>();
+    std::vector<SemanticError> errors;
+    ExpressionAnalyzer analyzer(scope, errors);
+    Location loc{1, 1};
+
+    auto e_int = std::make_unique<IntLiteral>(5, loc);
+    auto u_minus = std::make_unique<UnaryExpr>(UnaryOp::Minus, std::move(e_int), loc);
+    assert(analyzer.analyze(u_minus.get())->is_integer());
+
+    auto e_bool = std::make_unique<BoolLiteral>(true, loc);
+    auto u_not = std::make_unique<UnaryExpr>(UnaryOp::Not, std::move(e_bool), loc);
+    assert(analyzer.analyze(u_not.get())->is_boolean());
+
+    auto e_bad_not = std::make_unique<UnaryExpr>(UnaryOp::Not, std::make_unique<IntLiteral>(5, loc), loc);
+    assert(analyzer.analyze(e_bad_not.get())->is_error());
+    assert(!errors.empty());
+    errors.clear();
+
+    auto add_mixed = std::make_unique<BinaryExpr>(BinOp::Plus,
+                                                  std::make_unique<IntLiteral>(1, loc),
+                                                  std::make_unique<RealLiteral>(2.5, loc), loc);
+    assert(analyzer.analyze(add_mixed.get())->is_real());
+
+    auto mod_valid = std::make_unique<BinaryExpr>(BinOp::Mod,
+                                                  std::make_unique<IntLiteral>(5, loc),
+                                                  std::make_unique<IntLiteral>(2, loc), loc);
+    assert(analyzer.analyze(mod_valid.get())->is_integer());
+
+    auto mod_bad = std::make_unique<BinaryExpr>(BinOp::Mod,
+                                                std::make_unique<RealLiteral>(5.5, loc),
+                                                std::make_unique<IntLiteral>(2, loc), loc);
+    assert(analyzer.analyze(mod_bad.get())->is_error());
+    assert(!errors.empty());
+    errors.clear();
+
+    auto log_and = std::make_unique<BinaryExpr>(BinOp::And,
+                                                std::make_unique<BoolLiteral>(true, loc),
+                                                std::make_unique<BoolLiteral>(false, loc), loc);
+    assert(analyzer.analyze(log_and.get())->is_boolean());
+
+    auto comp_less = std::make_unique<BinaryExpr>(BinOp::Less,
+                                                  std::make_unique<IntLiteral>(3, loc),
+                                                  std::make_unique<RealLiteral>(4.5, loc), loc);
+    assert(analyzer.analyze(comp_less.get())->is_boolean());
+
+    auto arr_t = std::make_shared<ArrayType>(PrimitiveType::get_integer(), 5, 1);
+    scope->declare_variable(VariableSymbol("arr", arr_t, false, loc));
+    auto comp_bad = std::make_unique<BinaryExpr>(BinOp::Equal,
+                                                 std::make_unique<Identifier>("arr", loc),
+                                                 std::make_unique<IntLiteral>(5, loc), loc);
+    assert(analyzer.analyze(comp_bad.get())->is_error());
+    assert(!errors.empty());
+
+    std::cout << "[PASS] test_expression_operators\n";
+}
+
+void test_member_and_element_access() {
+    auto scope = std::make_shared<Scope>();
+    std::vector<SemanticError> errors;
+    ExpressionAnalyzer analyzer(scope, errors);
+    Location loc{1, 1};
+
+    auto t_int = PrimitiveType::get_integer();
+    auto t_real = PrimitiveType::get_real();
+
+    std::vector<RecordField> pt_fields = {{"x", t_int}, {"y", t_int}};
+    auto pt_type = std::make_shared<RecordType>("Point", pt_fields, 10);
+    scope->declare_variable(VariableSymbol("pt", pt_type, false, loc));
+
+    auto field_x = std::make_unique<FieldAccessExpr>(std::make_unique<Identifier>("pt", loc), "x", loc);
+    assert(analyzer.analyze(field_x.get())->is_integer());
+
+    auto field_bad = std::make_unique<FieldAccessExpr>(std::make_unique<Identifier>("pt", loc), "z", loc);
+    assert(analyzer.analyze(field_bad.get())->is_error());
+    assert(!errors.empty());
+    errors.clear();
+
+    auto arr_type = std::make_shared<ArrayType>(t_real, 10, 20);
+    scope->declare_variable(VariableSymbol("arr", arr_type, false, loc));
+
+    auto elem_valid = std::make_unique<ElementAccessExpr>(
+            std::make_unique<Identifier>("arr", loc),
+            std::make_unique<IntLiteral>(1, loc), loc);
+    assert(analyzer.analyze(elem_valid.get())->is_real());
+
+    auto elem_bad = std::make_unique<ElementAccessExpr>(
+            std::make_unique<Identifier>("arr", loc),
+            std::make_unique<BoolLiteral>(true, loc), loc);
+    assert(analyzer.analyze(elem_bad.get())->is_error());
+    assert(!errors.empty());
+    errors.clear();
+
+    auto size_access = std::make_unique<FieldAccessExpr>(std::make_unique<Identifier>("arr", loc), "size", loc);
+    assert(analyzer.analyze(size_access.get())->is_integer());
+
+    auto row_type = std::make_shared<ArrayType>(t_int, 3, 30);
+    auto matrix_type = std::make_shared<ArrayType>(row_type, 3, 31);
+    scope->declare_variable(VariableSymbol("matrix", matrix_type, false, loc));
+
+    auto row_access = std::make_unique<ElementAccessExpr>(
+            std::make_unique<Identifier>("matrix", loc),
+            std::make_unique<IntLiteral>(1, loc), loc);
+    auto cell_access = std::make_unique<ElementAccessExpr>(
+            std::move(row_access),
+            std::make_unique<IntLiteral>(2, loc), loc);
+    assert(analyzer.analyze(cell_access.get())->is_integer());
+
+    std::cout << "[PASS] test_member_and_element_access\n";
+}
+
+void test_routine_call_expressions() {
+    auto scope = std::make_shared<Scope>();
+    std::vector<SemanticError> errors;
+    ExpressionAnalyzer analyzer(scope, errors);
+    Location loc{1, 1};
+
+    auto t_int = PrimitiveType::get_integer();
+    auto t_real = PrimitiveType::get_real();
+
+    std::vector<VariableSymbol> params = {
+            VariableSymbol("a", t_int, false, loc),
+            VariableSymbol("b", t_int, false, loc)
+    };
+    scope->declare_routine(RoutineSymbol("add", params, t_int, false, true, loc));
+
+    std::vector<std::unique_ptr<Expression>> valid_args;
+    valid_args.push_back(std::make_unique<IntLiteral>(1, loc));
+    valid_args.push_back(std::make_unique<IntLiteral>(2, loc));
+    auto call_valid = std::make_unique<RoutineCallExpr>("add", std::move(valid_args), loc);
+    assert(analyzer.analyze(call_valid.get())->is_integer());
+
+    std::vector<std::unique_ptr<Expression>> few_args;
+    few_args.push_back(std::make_unique<IntLiteral>(1, loc));
+    auto call_few = std::make_unique<RoutineCallExpr>("add", std::move(few_args), loc);
+    assert(analyzer.analyze(call_few.get())->is_integer());
+    assert(!errors.empty());
+    errors.clear();
+
+    std::vector<VariableSymbol> proc_params = { VariableSymbol("val", t_int, false, loc) };
+    scope->declare_routine(RoutineSymbol("log_msg", proc_params, PrimitiveType::get_void(), false, true, loc));
+
+    std::vector<std::unique_ptr<Expression>> proc_args;
+    proc_args.push_back(std::make_unique<IntLiteral>(10, loc));
+    auto call_proc = std::make_unique<RoutineCallExpr>("log_msg", std::move(proc_args), loc);
+    assert(analyzer.analyze(call_proc.get())->is_error());
+    assert(!errors.empty());
+
+    std::cout << "[PASS] test_routine_call_expressions\n";
+}
+
+void test_declaration_expression_inference() {
+    auto scope = std::make_shared<Scope>();
+    DeclarationAnalyzer decl_analyzer(scope);
+    Location loc{1, 1};
+
+    auto mul = std::make_unique<BinaryExpr>(BinOp::Mul,
+                                            std::make_unique<IntLiteral>(3, loc),
+                                            std::make_unique<IntLiteral>(4, loc), loc);
+    auto add = std::make_unique<BinaryExpr>(BinOp::Plus,
+                                            std::make_unique<IntLiteral>(2, loc),
+                                            std::move(mul), loc);
+    auto var_x = std::make_unique<VariableDeclaration>("x", nullptr, std::move(add), loc);
+
+    decl_analyzer.analyze(var_x.get());
+    assert(!decl_analyzer.has_errors());
+    auto* sym_x = scope->lookup_variable("x");
+    assert(sym_x != nullptr);
+    assert(sym_x->type->is_integer());
+
+    std::cout << "[PASS] test_declaration_expression_inference\n";
+}
+
 int main() {
     std::cout << "=== Running Semantics Unit Tests ===\n";
     test_primitive_types();
@@ -253,6 +457,11 @@ int main() {
     test_scope_hierarchy_and_shadowing();
     test_declaration_analyzer_types_and_vars();
     test_declaration_analyzer_routines_and_forward();
+    test_assignment_matrix_l07();
+    test_expression_operators();
+    test_member_and_element_access();
+    test_routine_call_expressions();
+    test_declaration_expression_inference();
     std::cout << "All semantics unit tests passed successfully!\n";
     return 0;
 }
