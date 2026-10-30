@@ -3,6 +3,9 @@ add_library(semantics STATIC
     Scope.cpp
     DeclarationAnalyzer.cpp
     ExpressionAnalyzer.cpp
+    Diagnostics.cpp
+    StatementAnalyzer.cpp
+    SemanticAnalyzer.cpp
 )
 
 target_include_directories(semantics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
