@@ -1,10 +1,10 @@
 #pragma once
-#include<memory>
+#include <memory>
 #include <string>
-#include<optional>
-#include<vector>
+#include <optional>
+#include <vector>
 
-enum class TypeKind{
+enum class TypeKind {
     Integer,
     Real,
     Boolean,
@@ -15,6 +15,9 @@ enum class TypeKind{
     Alias
 };
 
+class Type;
+using TypeRef = std::shared_ptr<Type>;
+
 class Type : public std::enable_shared_from_this<Type> {
 public:
     virtual ~Type() = default;
@@ -22,7 +25,7 @@ public:
     virtual std::string to_string() const = 0;
 
     virtual bool equals(const Type& other) const = 0;
-    virtual std::shared_ptr<Type> unalias();
+    virtual TypeRef unalias();
     bool is_integer() const;
     bool is_real() const;
     bool is_boolean() const;
@@ -59,13 +62,14 @@ public:
 // ============================================================================
 // Arrays
 // ============================================================================
+
 class ArrayType : public Type {
 public:
-    std::shared_ptr<Type> element_type;
+    TypeRef element_type;
     std::optional<size_t> size;
     size_t type_id;
 
-    ArrayType(std::shared_ptr<Type> elem_type,
+    ArrayType(TypeRef elem_type,
               std::optional<size_t> sz = std::nullopt,
               size_t id = 0)
         : element_type(std::move(elem_type)), size(sz), type_id(id) {}
@@ -82,9 +86,10 @@ public:
 // ============================================================================
 // Record
 // ============================================================================
+
 struct RecordField {
     std::string name;
-    std::shared_ptr<Type> type;
+    TypeRef type;
 };
 
 class RecordType : public Type {
@@ -106,16 +111,17 @@ public:
 // ============================================================================
 // Type Alias
 // ============================================================================
+
 class AliasType : public Type {
 public:
     std::string name;
-    std::shared_ptr<Type> target_type;
-    AliasType(std::string name, std::shared_ptr<Type> target)
+    TypeRef target_type;
+    AliasType(std::string name, TypeRef target)
         : name(std::move(name)), target_type(std::move(target)) {}
 
     TypeKind kind() const override { return TypeKind::Alias; }
     std::string to_string() const override { return name; }
     bool equals(const Type& other) const override;
 
-    std::shared_ptr<Type> unalias() override;
+    TypeRef unalias() override;
 };
