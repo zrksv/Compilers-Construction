@@ -1,30 +1,33 @@
 #pragma once
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include <memory>
 #include "Symbol.hpp"
 
-class Scope : public std::enable_shared_from_this<Scope> {
+class Scope {
 private:
-    std::shared_ptr<Scope> m_parent;
+    Scope* m_parent = nullptr;
+    std::vector<std::unique_ptr<Scope>> m_children;
     std::unordered_map<std::string, VariableSymbol> m_variables;
     std::unordered_map<std::string, TypeSymbol> m_types;
     std::unordered_map<std::string, RoutineSymbol> m_routines;
 
 public:
+    explicit Scope(Scope* parent = nullptr) : m_parent(parent) {}
 
-    explicit Scope(std::shared_ptr<Scope> parent = nullptr)
-        : m_parent(std::move(parent)) {}
+    Scope(const Scope&) = delete;
+    Scope& operator=(const Scope&) = delete;
 
     bool is_global() const {
         return m_parent == nullptr;
     }
 
-    std::shared_ptr<Scope> get_parent() const {
+    Scope* get_parent() const {
         return m_parent;
     }
 
-    std::shared_ptr<Scope> create_child();
+    Scope& create_child();
 
     bool declare_variable(const VariableSymbol& var);
     bool declare_type(const TypeSymbol& type_sym);
@@ -36,5 +39,13 @@ public:
 
     const std::unordered_map<std::string, RoutineSymbol>& get_routines() const {
         return m_routines;
+    }
+
+    const std::unordered_map<std::string, VariableSymbol>& get_variables() const {
+        return m_variables;
+    }
+
+    const std::unordered_map<std::string, TypeSymbol>& get_types() const {
+        return m_types;
     }
 };

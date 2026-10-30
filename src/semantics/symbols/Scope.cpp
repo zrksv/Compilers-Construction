@@ -1,12 +1,15 @@
 #include "Scope.hpp"
 
-std::shared_ptr<Scope> Scope::create_child() {
-    return std::make_shared<Scope>(shared_from_this());
+Scope& Scope::create_child() {
+    auto child = std::make_unique<Scope>(this);
+    m_children.push_back(std::move(child));
+    return *m_children.back();
 }
 
 // ============================================================================
 // Declarations
 // ============================================================================
+
 bool Scope::declare_variable(const VariableSymbol& var) {
     if (m_variables.find(var.name) != m_variables.end()) {
         return false;
@@ -34,6 +37,7 @@ bool Scope::declare_routine(const RoutineSymbol& routine) {
 // ============================================================================
 // Lookup
 // ============================================================================
+
 VariableSymbol* Scope::lookup_variable(const std::string& name, bool check_parents) {
     auto it = m_variables.find(name);
     if (it != m_variables.end()) {
@@ -69,4 +73,3 @@ RoutineSymbol* Scope::lookup_routine(const std::string& name, bool check_parents
     }
     return nullptr;
 }
-

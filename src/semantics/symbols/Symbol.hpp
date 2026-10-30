@@ -2,17 +2,17 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include "Type.hpp"
-#include "../common/Location.hpp"
+#include "types/Type.hpp"
+#include "common/Location.hpp"
 
 struct VariableSymbol {
     std::string name;
-    std::shared_ptr<Type> type;
+    TypeRef type;
     bool is_readonly = false;
     Location location;
 
     VariableSymbol(std::string name,
-                   std::shared_ptr<Type> type,
+                   TypeRef type,
                    bool is_readonly = false,
                    Location loc = {})
         : name(std::move(name)),
@@ -23,24 +23,24 @@ struct VariableSymbol {
 
 struct TypeSymbol {
     std::string name;
-    std::shared_ptr<Type> type;
+    TypeRef type;
     Location location;
 
-    TypeSymbol(std::string name, std::shared_ptr<Type> type, Location loc = {})
+    TypeSymbol(std::string name, TypeRef type, Location loc = {})
         : name(std::move(name)), type(std::move(type)), location(loc) {}
 };
 
 struct RoutineSymbol {
     std::string name;
     std::vector<VariableSymbol> parameters;
-    std::shared_ptr<Type> return_type;
+    TypeRef return_type;
     bool is_forward = false;
     bool is_defined = false;
     Location location;
 
     RoutineSymbol(std::string name,
                   std::vector<VariableSymbol> params,
-                  std::shared_ptr<Type> ret_type,
+                  TypeRef ret_type,
                   bool is_forward = false,
                   bool is_defined = false,
                   Location loc = {})
