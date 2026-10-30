@@ -3,6 +3,12 @@ add_library(semantics STATIC
         types/Type.cpp
         types/TypeFactory.hpp
         types/TypeCompatibility.hpp
+        DIagnostics.hpp
+        Results.hpp
+        Diagnostics.cpp
+        Context.hpp
+        Dispatcher.hpp
+        RuleBase.hpp
 )
 
 target_include_directories(semantics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
