@@ -80,19 +80,42 @@ public:
                     return ExprResult::error();
                 }
 
-                if (!TypeCompatibility::can_assign(left_t, right_t) &&
-                    !TypeCompatibility::can_assign(right_t, left_t)) {
-                    error(node.location, "Cannot compare incompatible types " +
-                          left_t->to_string() + " and " + right_t->to_string());
-                    return ExprResult::error();
+                if (left_t->is_numeric() && right_t->is_numeric()) {
+                    if (left_t->is_integer() && right_t->is_real()) {
+                        m_services.model.set_conversion(node.left.get(), ConversionKind::IntegerToReal);
+                    } else if (left_t->is_real() && right_t->is_integer()) {
+                        m_services.model.set_conversion(node.right.get(), ConversionKind::IntegerToReal);
+                    }
+                    return ExprResult::value(PrimitiveType::get_boolean());
                 }
 
-                if (left_t->is_integer() && right_t->is_real()) {
-                    m_services.model.set_conversion(node.left.get(), ConversionKind::IntegerToReal);
-                } else if (left_t->is_real() && right_t->is_integer()) {
-                    m_services.model.set_conversion(node.right.get(), ConversionKind::IntegerToReal);
+                if (left_t->is_boolean() && right_t->is_boolean()) {
+                    return ExprResult::value(PrimitiveType::get_boolean());
                 }
-                return ExprResult::value(PrimitiveType::get_boolean());
+
+                if (left_t->is_integer() && right_t->is_boolean()) {
+                    m_services.model.set_conversion(node.right.get(), ConversionKind::BooleanToInteger);
+                    return ExprResult::value(PrimitiveType::get_boolean());
+                }
+
+                if (left_t->is_boolean() && right_t->is_integer()) {
+                    m_services.model.set_conversion(node.left.get(), ConversionKind::BooleanToInteger);
+                    return ExprResult::value(PrimitiveType::get_boolean());
+                }
+
+                if (left_t->is_real() && right_t->is_boolean()) {
+                    m_services.model.set_conversion(node.right.get(), ConversionKind::BooleanToReal);
+                    return ExprResult::value(PrimitiveType::get_boolean());
+                }
+
+                if (left_t->is_boolean() && right_t->is_real()) {
+                    m_services.model.set_conversion(node.left.get(), ConversionKind::BooleanToReal);
+                    return ExprResult::value(PrimitiveType::get_boolean());
+                }
+
+                error(node.location, "Cannot compare incompatible types " +
+                      left_t->to_string() + " and " + right_t->to_string());
+                return ExprResult::error();
             }
         }
 

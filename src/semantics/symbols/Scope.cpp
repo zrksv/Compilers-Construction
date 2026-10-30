@@ -6,12 +6,18 @@ Scope& Scope::create_child() {
     return *m_children.back();
 }
 
+bool Scope::is_declared_locally(const std::string& name) const {
+    return m_variables.find(name) != m_variables.end() ||
+           m_types.find(name) != m_types.end() ||
+           m_routines.find(name) != m_routines.end();
+}
+
 // ============================================================================
 // Declarations
 // ============================================================================
 
 bool Scope::declare_variable(const VariableSymbol& var) {
-    if (m_variables.find(var.name) != m_variables.end()) {
+    if (is_declared_locally(var.name)) {
         return false;
     }
     m_variables.emplace(var.name, var);
@@ -19,7 +25,7 @@ bool Scope::declare_variable(const VariableSymbol& var) {
 }
 
 bool Scope::declare_type(const TypeSymbol& type_sym) {
-    if (m_types.find(type_sym.name) != m_types.end()) {
+    if (is_declared_locally(type_sym.name)) {
         return false;
     }
     m_types.emplace(type_sym.name, type_sym);
@@ -27,7 +33,7 @@ bool Scope::declare_type(const TypeSymbol& type_sym) {
 }
 
 bool Scope::declare_routine(const RoutineSymbol& routine) {
-    if (m_routines.find(routine.name) != m_routines.end()) {
+    if (is_declared_locally(routine.name)) {
         return false;
     }
     m_routines.emplace(routine.name, routine);

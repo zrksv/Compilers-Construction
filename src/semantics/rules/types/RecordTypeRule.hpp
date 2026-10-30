@@ -31,7 +31,9 @@ public:
                 auto expr_res = m_dispatcher.expression(decl->expression.get(), ctx);
                 field_type = expr_res.type;
                 if (!field_type || field_type->is_error()) {
-                    error(decl->location, "Cannot infer type for field '" + decl->name + "'");
+                    if (!expr_res.is_error()) {
+                        error(decl->location, "Cannot infer type for field '" + decl->name + "'");
+                    }
                     field_type = PrimitiveType::get_error();
                 }
             } else {

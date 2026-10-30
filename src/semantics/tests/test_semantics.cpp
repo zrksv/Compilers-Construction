@@ -244,6 +244,10 @@ void test_scope_hierarchy_and_shadowing() {
     assert(child_scope.lookup_variable("y") != nullptr);
     assert(child_scope.lookup_variable("y", /*check_parents=*/false) == nullptr);
 
+    assert(!global_scope->declare_type(TypeSymbol("y", t_int, {3, 1})));
+    assert(!global_scope->declare_routine(RoutineSymbol("y", {}, t_int, false, true, {4, 1})));
+    assert(!global_scope->declare_variable(VariableSymbol("y", t_int, false, {5, 1})));
+
     std::cout << "[PASS] test_scope_hierarchy_and_shadowing\n";
 }
 
@@ -375,26 +379,42 @@ void test_assignment_matrix() {
     auto t_bool = PrimitiveType::get_boolean();
 
     assert(TypeCompatibility::can_assign(t_int, t_int));
+    assert(TypeCompatibility::conversion(t_int, t_int) == ConversionKind::None);
+
     assert(TypeCompatibility::can_assign(t_int, t_real));
+    assert(TypeCompatibility::conversion(t_int, t_real) == ConversionKind::RealToInteger);
+
     assert(TypeCompatibility::can_assign(t_int, t_bool));
+    assert(TypeCompatibility::conversion(t_int, t_bool) == ConversionKind::BooleanToInteger);
 
     assert(TypeCompatibility::can_assign(t_real, t_real));
+    assert(TypeCompatibility::conversion(t_real, t_real) == ConversionKind::None);
+
     assert(TypeCompatibility::can_assign(t_real, t_int));
+    assert(TypeCompatibility::conversion(t_real, t_int) == ConversionKind::IntegerToReal);
+
     assert(TypeCompatibility::can_assign(t_real, t_bool));
+    assert(TypeCompatibility::conversion(t_real, t_bool) == ConversionKind::BooleanToReal);
 
     assert(TypeCompatibility::can_assign(t_bool, t_bool));
+    assert(TypeCompatibility::conversion(t_bool, t_bool) == ConversionKind::None);
+
     assert(TypeCompatibility::can_assign(t_bool, t_int));
+    assert(TypeCompatibility::conversion(t_bool, t_int) == ConversionKind::IntegerToBoolean);
+
     assert(!TypeCompatibility::can_assign(t_bool, t_real));
 
     std::vector<RecordField> fields = {{"x", t_int}};
     auto rec_a = std::make_shared<RecordType>("RecA", fields, 1);
     auto rec_b = std::make_shared<RecordType>("RecB", fields, 2);
     assert(TypeCompatibility::can_assign(rec_a, rec_a));
+    assert(TypeCompatibility::conversion(rec_a, rec_a) == ConversionKind::None);
     assert(!TypeCompatibility::can_assign(rec_a, rec_b));
 
     auto fixed_arr = std::make_shared<ArrayType>(t_int, 5, 10);
     auto unsized_arr = std::make_shared<ArrayType>(t_int, std::nullopt, 0);
     assert(TypeCompatibility::can_assign(unsized_arr, fixed_arr));
+    assert(TypeCompatibility::conversion(unsized_arr, fixed_arr) == ConversionKind::None);
 
     std::cout << "[PASS] test_assignment_matrix\n";
 }
@@ -661,6 +681,85 @@ void test_initializer_precedence() {
     std::cout << "[PASS] test_initializer_precedence\n";
 }
 
+void test_equality_operator_types() {
+    Diagnostics diag;
+    TypeFactory factory;
+    SemanticModel model;
+    Services services{diag, factory, model};
+    TestDispatcher disp(services);
+    Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
+    Location loc{1, 1};
+
+    auto int_eq_int = std::make_unique<BinaryExpr>(BinOp::Equal, std::make_unique<IntLiteral>(5, loc), std::make_unique<IntLiteral>(10, loc), loc);
+    auto res1 = disp.expression(int_eq_int.get(), ctx);
+    assert(!res1.is_error() && res1.type->is_boolean());
+
+    auto int_eq_real = std::make_unique<BinaryExpr>(BinOp::Equal, std::make_unique<IntLiteral>(5, loc), std::make_unique<RealLiteral>(5.0, loc), loc);
+    auto res2 = disp.expression(int_eq_real.get(), ctx);
+    assert(!res2.is_error() && res2.type->is_boolean());
+    assert(model.conversion_of(int_eq_real->left.get()) == ConversionKind::IntegerToReal);
+
+    auto bool_eq_bool = std::make_unique<BinaryExpr>(BinOp::Equal, std::make_unique<BoolLiteral>(true, loc), std::make_unique<BoolLiteral>(false, loc), loc);
+    auto res3 = disp.expression(bool_eq_bool.get(), ctx);
+    assert(!res3.is_error() && res3.type->is_boolean());
+
+    auto int_eq_bool = std::make_unique<BinaryExpr>(BinOp::Equal, std::make_unique<IntLiteral>(5, loc), std::make_unique<BoolLiteral>(true, loc), loc);
+    auto res4 = disp.expression(int_eq_bool.get(), ctx);
+    assert(!res4.is_error() && res4.type->is_boolean());
+    assert(model.conversion_of(int_eq_bool->right.get()) == ConversionKind::BooleanToInteger);
+
+    auto bool_eq_real = std::make_unique<BinaryExpr>(BinOp::Equal, std::make_unique<BoolLiteral>(true, loc), std::make_unique<RealLiteral>(1.0, loc), loc);
+    auto res5 = disp.expression(bool_eq_real.get(), ctx);
+    assert(!res5.is_error() && res5.type->is_boolean());
+    assert(model.conversion_of(bool_eq_real->left.get()) == ConversionKind::BooleanToReal);
+
+    assert(!diag.has_errors());
+
+    std::cout << "[PASS] test_equality_operator_types\n";
+}
+
+void test_unsized_array_only_in_parameters() {
+    Diagnostics diag;
+    TypeFactory factory;
+    SemanticModel model;
+    Services services{diag, factory, model};
+    TestDispatcher disp(services);
+    Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
+    Location loc{1, 1};
+
+    auto type_decl = std::make_unique<TypeDeclaration>(
+        "Arr",
+        std::make_unique<ArrayTypeNode>(nullptr, std::make_unique<PrimitiveTypeNode>("integer", loc), loc),
+        loc
+    );
+    disp.statement(type_decl.get(), ctx);
+    assert(diag.has_errors());
+
+    std::cout << "[PASS] test_unsized_array_only_in_parameters\n";
+}
+
+void test_secondary_error_suppression() {
+    Diagnostics diag;
+    TypeFactory factory;
+    SemanticModel model;
+    Services services{diag, factory, model};
+    TestDispatcher disp(services);
+    Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
+    Location loc{1, 1};
+
+    auto bad_var = std::make_unique<VariableDeclaration>(
+        "x",
+        nullptr,
+        std::make_unique<BinaryExpr>(BinOp::Plus, std::make_unique<Identifier>("undefined_var", loc), std::make_unique<IntLiteral>(1, loc), loc),
+        loc
+    );
+    disp.statement(bad_var.get(), ctx);
+    assert(diag.get_errors().size() == 1);
+    assert(diag.get_errors()[0].message.find("not declared") != std::string::npos);
+
+    std::cout << "[PASS] test_secondary_error_suppression\n";
+}
+
 int main() {
     std::cout << "=== Running Semantics Unit Tests ===\n";
     test_primitive_types();
@@ -677,6 +776,9 @@ int main() {
     test_declaration_expression_inference();
     test_unsized_array_restrictions();
     test_initializer_precedence();
+    test_equality_operator_types();
+    test_unsized_array_only_in_parameters();
+    test_secondary_error_suppression();
     std::cout << "All semantics unit tests passed successfully!\n";
     return 0;
 }

@@ -28,6 +28,7 @@ public:
     }
 
     Scope& create_child();
+    bool is_declared_locally(const std::string& name) const;
 
     bool declare_variable(const VariableSymbol& var);
     bool declare_type(const TypeSymbol& type_sym);

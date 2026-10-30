@@ -11,8 +11,8 @@ public:
             return StmtResult{};
         }
 
-        if (ctx.scope->lookup_variable(node.name, false)) {
-            error(node.location, "Variable '" + node.name + "' is already declared in this scope");
+        if (ctx.scope->is_declared_locally(node.name)) {
+            error(node.location, "Name '" + node.name + "' is already declared in this scope");
             return StmtResult{};
         }
 
@@ -40,7 +40,9 @@ public:
         } else if (node.expression) {
             var_type = init_res.type;
             if (!var_type || var_type->is_error()) {
-                error(node.location, "Cannot infer type for variable '" + node.name + "'");
+                if (!init_res.is_error()) {
+                    error(node.location, "Cannot infer type for variable '" + node.name + "'");
+                }
                 var_type = PrimitiveType::get_error();
             }
         } else {

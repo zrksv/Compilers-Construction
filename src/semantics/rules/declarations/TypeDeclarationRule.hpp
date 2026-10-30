@@ -11,8 +11,8 @@ public:
             return StmtResult{};
         }
 
-        if (ctx.scope->lookup_type(node.name, false)) {
-            error(node.location, "Type '" + node.name + "' is already declared in this scope");
+        if (ctx.scope->is_declared_locally(node.name)) {
+            error(node.location, "Name '" + node.name + "' is already declared in this scope");
             return StmtResult{};
         }
 

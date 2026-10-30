@@ -34,6 +34,11 @@ private:
         bool is_forward_decl = (node.body_type == RoutineBodyType::Forward);
         auto* existing = ctx.scope->lookup_routine(node.name, false);
 
+        if (!existing && ctx.scope->is_declared_locally(node.name)) {
+            error(node.location, "Name '" + node.name + "' is already declared in this scope");
+            return nullptr;
+        }
+
         if (existing) {
             if (existing->is_defined) {
                 error(node.location, "Routine '" + node.name + "' is already defined");
@@ -72,11 +77,40 @@ private:
         return ctx.scope->lookup_routine(node.name, false);
     }
 
+    void analyze_body(RoutineDeclaration& node, const Context& ctx, RoutineSymbol* sym) {
+        if (!sym || node.body_type == RoutineBodyType::Forward) {
+            return;
+        }
+
+        RoutineInfo info{sym->name, sym->return_type};
+        Context body_ctx = ctx.enter_routine(&info);
+
+        for (const auto& param : sym->parameters) {
+            body_ctx.scope->declare_variable(param);
+        }
+
+        if (node.body_type == RoutineBodyType::Expression) {
+            if (sym->return_type->is_void()) {
+                error(node.location, "Procedure '" + sym->name + "' cannot have an expression body");
+                return;
+            }
+            if (node.expression_body) {
+                auto expr_res = m_dispatcher.expression(node.expression_body.get(), body_ctx);
+                if (!expr_res.is_error()) {
+                    convert(sym->return_type, expr_res.type, node.expression_body.get(), node.location);
+                }
+            }
+        } else if (node.body_type == RoutineBodyType::Block) {
+            m_dispatcher.statement_list(node.body, body_ctx);
+        }
+    }
+
 public:
     using StatementRule::StatementRule;
 
     StmtResult analyze(RoutineDeclaration& node, const Context& ctx) override {
-        declare_header(node, ctx);
+        RoutineSymbol* sym = declare_header(node, ctx);
+        analyze_body(node, ctx, sym);
         return StmtResult{};
     }
 };
