@@ -3,8 +3,10 @@
 #include "Services.hpp"
 #include "Diagnostics.hpp"
 #include "SemanticModel.hpp"
+#include "types/TypeFactory.hpp"
 #include "types/TypeCompatibility.hpp"
 
+// Base class providing common infrastructure to all semantic rules
 class RuleBase {
 protected:
     Dispatcher& m_dispatcher;

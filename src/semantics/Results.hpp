@@ -26,11 +26,11 @@ struct ExprResult {
     }
 
     static ExprResult error() {
-        return ExprResult{nullptr, Access::Value, ""};
+        return ExprResult{PrimitiveType::get_error(), Access::Value, ""};
     }
 
     bool is_error() const {
-        return type == nullptr;
+        return type == nullptr || type->is_error();
     }
 };
 

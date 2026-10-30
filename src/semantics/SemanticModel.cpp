@@ -22,13 +22,13 @@ const VariableSymbol* SemanticModel::variable_of(const Identifier* id) const {
     return it != m_var_bindings.end() ? it->second : nullptr;
 }
 
-void SemanticModel::bind_routine(const RoutineCallExpr* call, const RoutineSymbol* routine) {
+void SemanticModel::bind_routine(const AstNode* call, const RoutineSymbol* routine) {
     if (call) {
         m_routine_bindings[call] = routine;
     }
 }
 
-const RoutineSymbol* SemanticModel::routine_of(const RoutineCallExpr* call) const {
+const RoutineSymbol* SemanticModel::routine_of(const AstNode* call) const {
     auto it = m_routine_bindings.find(call);
     return it != m_routine_bindings.end() ? it->second : nullptr;
 }

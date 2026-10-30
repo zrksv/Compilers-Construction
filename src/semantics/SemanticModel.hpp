@@ -11,7 +11,7 @@ private:
     Scope m_global_scope;
     std::unordered_map<const Expression*, TypeRef> m_expr_types;
     std::unordered_map<const Identifier*, const VariableSymbol*> m_var_bindings;
-    std::unordered_map<const RoutineCallExpr*, const RoutineSymbol*> m_routine_bindings;
+    std::unordered_map<const AstNode*, const RoutineSymbol*> m_routine_bindings;
     std::unordered_map<const Expression*, ConversionKind> m_conversions;
 
 public:
@@ -29,8 +29,8 @@ public:
     void bind_variable(const Identifier* id, const VariableSymbol* var);
     const VariableSymbol* variable_of(const Identifier* id) const;
 
-    void bind_routine(const RoutineCallExpr* call, const RoutineSymbol* routine);
-    const RoutineSymbol* routine_of(const RoutineCallExpr* call) const;
+    void bind_routine(const AstNode* call, const RoutineSymbol* routine);
+    const RoutineSymbol* routine_of(const AstNode* call) const;
 
     void set_conversion(const Expression* expr, ConversionKind kind);
     ConversionKind conversion_of(const Expression* expr) const;

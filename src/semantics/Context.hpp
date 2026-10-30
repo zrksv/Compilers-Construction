@@ -8,8 +8,7 @@ enum class TypeUse {
     Parameter,
     Result,
     Field,
-    Element,
-    AliasTarget
+    Element
 };
 
 struct RoutineInfo {
@@ -57,8 +56,8 @@ public:
         return routine != nullptr;
     }
 
-    // Unsized arrays are only allowed in parameters and type alias targets
+    // Unsized arrays are only allowed directly as routine parameters
     bool allows_unsized_array() const {
-        return type_use == TypeUse::Parameter || type_use == TypeUse::AliasTarget;
+        return type_use == TypeUse::Parameter;
     }
 };
