@@ -2,8 +2,9 @@
 #include <ostream>
 #include <vector>
 #include "AST.hpp"
+#include "ASTVisitor.hpp"
 
-class AstPrinter {
+class AstPrinter final : public AstVisitor {
 private:
     std::ostream& out;
     std::vector<bool> is_last;
@@ -26,29 +27,29 @@ private:
 public:
     explicit AstPrinter(std::ostream& out_stream) : out(out_stream) {}
 
-    void visit(IntLiteral& node);
-    void visit(RealLiteral& node);
-    void visit(BoolLiteral& node);
-    void visit(Identifier& node);
-    void visit(UnaryExpr& node);
-    void visit(BinaryExpr& node);
-    void visit(RoutineCallExpr& node);
-    void visit(AssignStatement& node);
-    void visit(RoutineCallStmt& node);
-    void visit(PrintStatement& node);
-    void visit(IfStatement& node);
-    void visit(WhileStatement& node);
-    void visit(ForStatement& node);
-    void visit(ReturnStatement& node);
-    void visit(VariableDeclaration& node);
-    void visit(RoutineDeclaration& node);
-    void visit(PrimitiveTypeNode& node);
-    void visit(IdentifierTypeNode& node);
-    void visit(ArrayTypeNode& node);
-    void visit(RecordTypeNode& node);
-    void visit(FieldAccessExpr& node);
-    void visit(ElementAccessExpr& node);
-    void visit(TypeDeclaration& node);
-    void visit(ParameterDeclaration& node);
-    void visit(Program& node);
+    void visit(IntLiteral& node) override;
+    void visit(RealLiteral& node) override;
+    void visit(BoolLiteral& node) override;
+    void visit(Identifier& node) override;
+    void visit(UnaryExpr& node) override;
+    void visit(BinaryExpr& node) override;
+    void visit(RoutineCallExpr& node) override;
+    void visit(AssignStatement& node) override;
+    void visit(RoutineCallStmt& node) override;
+    void visit(PrintStatement& node) override;
+    void visit(IfStatement& node) override;
+    void visit(WhileStatement& node) override;
+    void visit(ForStatement& node) override;
+    void visit(ReturnStatement& node) override;
+    void visit(VariableDeclaration& node) override;
+    void visit(RoutineDeclaration& node) override;
+    void visit(PrimitiveTypeNode& node) override;
+    void visit(IdentifierTypeNode& node) override;
+    void visit(ArrayTypeNode& node) override;
+    void visit(RecordTypeNode& node) override;
+    void visit(FieldAccessExpr& node) override;
+    void visit(ElementAccessExpr& node) override;
+    void visit(TypeDeclaration& node) override;
+    void visit(ParameterDeclaration& node) override;
+    void visit(Program& node) override;
 };

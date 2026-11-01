@@ -1,14 +1,23 @@
 #include "Scope.hpp"
 
-std::shared_ptr<Scope> Scope::create_child() {
-    return std::make_shared<Scope>(shared_from_this());
+Scope& Scope::create_child() {
+    auto child = std::make_unique<Scope>(this);
+    m_children.push_back(std::move(child));
+    return *m_children.back();
+}
+
+bool Scope::is_declared_locally(const std::string& name) const {
+    return m_variables.find(name) != m_variables.end() ||
+           m_types.find(name) != m_types.end() ||
+           m_routines.find(name) != m_routines.end();
 }
 
 // ============================================================================
 // Declarations
 // ============================================================================
+
 bool Scope::declare_variable(const VariableSymbol& var) {
-    if (m_variables.find(var.name) != m_variables.end()) {
+    if (is_declared_locally(var.name)) {
         return false;
     }
     m_variables.emplace(var.name, var);
@@ -16,7 +25,7 @@ bool Scope::declare_variable(const VariableSymbol& var) {
 }
 
 bool Scope::declare_type(const TypeSymbol& type_sym) {
-    if (m_types.find(type_sym.name) != m_types.end()) {
+    if (is_declared_locally(type_sym.name)) {
         return false;
     }
     m_types.emplace(type_sym.name, type_sym);
@@ -24,7 +33,7 @@ bool Scope::declare_type(const TypeSymbol& type_sym) {
 }
 
 bool Scope::declare_routine(const RoutineSymbol& routine) {
-    if (m_routines.find(routine.name) != m_routines.end()) {
+    if (is_declared_locally(routine.name)) {
         return false;
     }
     m_routines.emplace(routine.name, routine);
@@ -34,6 +43,7 @@ bool Scope::declare_routine(const RoutineSymbol& routine) {
 // ============================================================================
 // Lookup
 // ============================================================================
+
 VariableSymbol* Scope::lookup_variable(const std::string& name, bool check_parents) {
     auto it = m_variables.find(name);
     if (it != m_variables.end()) {
@@ -69,4 +79,3 @@ RoutineSymbol* Scope::lookup_routine(const std::string& name, bool check_parents
     }
     return nullptr;
 }
-

@@ -1,0 +1,20 @@
+routine twice(x : integer) : integer is
+	return x * 2;
+end
+
+routine no_value(x : integer) is
+	return x;
+end
+
+routine missing_return(x : integer) : integer is
+	if x > 0 then
+		return x;
+	end
+end
+
+routine main() is
+	var a : integer is twice(1, 2);
+	var b : integer is twice(true);
+	var c : integer is nothing(1);
+	print a + b + c;
+end

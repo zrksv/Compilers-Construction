@@ -32,13 +32,14 @@ bool Type::is_record() const {
     return const_cast<Type*>(this)->unalias()->kind() == TypeKind::Record;
 }
 
-std::shared_ptr<Type> Type::unalias() {
+TypeRef Type::unalias() {
     return shared_from_this();
 }
 
 // ============================================================================
 // PrimitiveType
 // ============================================================================
+
 std::string PrimitiveType::to_string() const {
     switch (m_kind) {
         case TypeKind::Integer: return "integer";
@@ -83,6 +84,7 @@ std::shared_ptr<PrimitiveType> PrimitiveType::get_error() {
 // ============================================================================
 // ArrayType
 // ============================================================================
+
 std::string ArrayType::to_string() const {
     std::string res = "array [";
     if (size.has_value()) {
@@ -99,13 +101,15 @@ bool ArrayType::equals(const Type& other) const {
     }
     auto other_arr = std::static_pointer_cast<ArrayType>(other_u);
 
-    if (type_id != 0 && other_arr->type_id != 0) {
-        return type_id == other_arr->type_id;
-    }
-
-    if (is_unsized() || other_arr->is_unsized()) {
+    // If either array is unsized (or has type_id == 0), they match if elements match
+    if (is_unsized() || other_arr->is_unsized() || type_id == 0 || other_arr->type_id == 0) {
         return element_type && other_arr->element_type &&
                element_type->equals(*other_arr->element_type);
+    }
+
+    // Nominal equality if both have explicit non-zero IDs
+    if (type_id != 0 && other_arr->type_id != 0) {
+        return type_id == other_arr->type_id;
     }
 
     return size == other_arr->size &&
@@ -116,6 +120,7 @@ bool ArrayType::equals(const Type& other) const {
 // ============================================================================
 // RecordType
 // ============================================================================
+
 std::string RecordType::to_string() const {
     if (!name.empty()) {
         return name;
@@ -151,7 +156,8 @@ const RecordField* RecordType::find_field(const std::string& field_name) const {
 // ============================================================================
 // AliasType
 // ============================================================================
-std::shared_ptr<Type> AliasType::unalias() {
+
+TypeRef AliasType::unalias() {
     auto current = shared_from_this();
     int depth = 0;
     const int MAX_DEPTH = 64;
