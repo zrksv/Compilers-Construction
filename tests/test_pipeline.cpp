@@ -8,6 +8,7 @@
 #include "Lexer.hpp"
 #include "ParserDriver.hpp"
 #include "ASTPrinter.hpp"
+#include "SemanticAnalyzer.hpp"
 
 void run_pipeline_test(const std::string& sample_name, bool to_file = false) {
     std::string path = resolve_path(sample_name);
@@ -60,8 +61,55 @@ void run_pipeline_test(const std::string& sample_name, bool to_file = false) {
     ast->accept(printer);
     out << "\n";
 
+    SemanticAnalyzer analyzer;
+    bool semantic_success = analyzer.analyze(dynamic_cast<Program*>(ast));
+    if (!semantic_success) {
+        out << "=== Semantic Analysis Failed ===\n";
+        analyzer.get_diagnostics().print(out);
+        analyzer.get_diagnostics().print(std::cerr);
+    }
+    assert(semantic_success && "Semantic analysis failed!");
+    out << "=== Semantic Analysis OK ===\n";
+
     if (!to_file) {
         std::cout << "[PASS] " << sample_name << "\n\n";
+    }
+}
+
+void run_pipeline_semantic_error_test(const std::string& sample_name, const std::vector<size_t>& expected_rows) {
+    std::string path = resolve_path(sample_name);
+    std::string code = read_file(path);
+    assert(!code.empty() && "Sample not found or empty!");
+
+    std::string stem = std::filesystem::path(path).stem().string();
+    std::string out_path = (test_output_dir() / (stem + ".txt")).string();
+    std::ofstream out(out_path, std::ios::out | std::ios::trunc);
+    assert(out.is_open() && "Cannot open output file!");
+
+    std::cout << "Testing pipeline semantic errors: " << sample_name << " -> " << out_path << "\n";
+
+    SourceManager sm(code);
+    Lexer lexer(sm);
+    ParserDriver driver;
+    bool parse_success = driver.parse(lexer);
+    assert(parse_success && "Parsing failed!");
+
+    out << "=== AST ===\n";
+    AstPrinter printer(out);
+    driver.get_ast()->accept(printer);
+    out << "\n";
+
+    SemanticAnalyzer analyzer;
+    bool semantic_success = analyzer.analyze(dynamic_cast<Program*>(driver.get_ast()));
+
+    const auto& errors = analyzer.get_diagnostics().get_errors();
+    out << "=== Semantic Analysis Failed (" << errors.size() << " errors) ===\n";
+    analyzer.get_diagnostics().print(out);
+
+    assert(!semantic_success && "Semantic analysis must fail!");
+    assert(errors.size() == expected_rows.size() && "Unexpected number of semantic errors!");
+    for (size_t i = 0; i < errors.size(); ++i) {
+        assert(errors[i].location.row == expected_rows[i] && "Semantic error reported on unexpected line!");
     }
 }
 
@@ -103,7 +151,7 @@ void run_pipeline_error_test(const std::string& sample_name, const std::vector<s
 }
 
 int main() {
-    std::cout << "=== Running Pipeline Tests (AST Generation) ===\n";
+    std::cout << "=== Running Pipeline Tests (AST Generation and Semantic Analysis) ===\n";
 
     run_pipeline_test("01_print.imp", true);
     run_pipeline_test("02_variables.imp", true);
@@ -126,6 +174,13 @@ int main() {
     run_pipeline_test("19_record_return.imp", true);
     run_pipeline_test("20_array_of_array.imp", true);
 
+    std::cout << "\n=== Running Pipeline Semantic Error Tests ===\n";
+
+    run_pipeline_semantic_error_test("10_error_no_forward.imp", {4});
+    run_pipeline_semantic_error_test("25_semantic_types.imp", {16, 19, 20});
+    run_pipeline_semantic_error_test("26_semantic_routines.imp", {6, 9, 16, 18});
+    run_pipeline_semantic_error_test("27_semantic_scopes_readonly.imp", {14, 16, 18, 19});
+
     std::cout << "\n=== Running Pipeline Error Tests (Parser Recovery) ===\n";
 
     run_pipeline_error_test("21_syntax_error_single.imp", {5});
@@ -133,6 +188,6 @@ int main() {
     run_pipeline_error_test("23_syntax_error_declarations.imp", {3, 6, 10});
     run_pipeline_error_test("24_syntax_error_lexical.imp", {2, 3, 4});
 
-    std::cout << "\n[ALL PASS] 20 AST outputs and 4 error reports generated in " << test_output_dir().string() << "\n";
+    std::cout << "\n[ALL PASS] 20 AST outputs, 4 semantic and 4 syntax error reports generated in " << test_output_dir().string() << "\n";
     return 0;
 }

@@ -6,6 +6,7 @@
 #include "Lexer.hpp"
 #include "ParserDriver.hpp"
 #include "ASTPrinter.hpp"
+#include "SemanticAnalyzer.hpp"
 
 using namespace std;
 
@@ -47,8 +48,16 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Check if the requested routine exists in the program
     auto* program = dynamic_cast<Program*>(driver.get_ast());
+
+    SemanticAnalyzer analyzer;
+    if (!analyzer.analyze(program)) {
+        cerr << "Semantic analysis failed:\n";
+        analyzer.get_diagnostics().print(cerr);
+        return 1;
+    }
+
+    // Check if the requested routine exists in the program
     RoutineDeclaration* target_routine = nullptr;
 
     if (program) {

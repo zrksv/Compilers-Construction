@@ -26,24 +26,9 @@ public:
     Context(Scope* s, const RoutineInfo* r, TypeUse u)
         : scope(s), routine(r), type_use(u) {}
 
-    // Create a copy with a new child scope
-    Context with_child_scope() const {
-        Context copy = *this;
-        if (scope) {
-            copy.scope = &scope->create_child();
-        }
-        return copy;
-    }
+    Context with_child_scope() const;
 
-    // Create a copy configured for routine body analysis
-    Context enter_routine(const RoutineInfo* info) const {
-        Context copy = *this;
-        if (scope) {
-            copy.scope = &scope->create_child();
-        }
-        copy.routine = info;
-        return copy;
-    }
+    Context enter_routine(const RoutineInfo* info) const;
 
     // Create a copy with modified TypeUse position
     Context with_type_use(TypeUse use) const {

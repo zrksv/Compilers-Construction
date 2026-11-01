@@ -13,26 +13,61 @@ add_library(semantics STATIC
         Diagnostics.cpp
         Results.hpp
         Context.hpp
+        Context.cpp
         Services.hpp
         Dispatcher.hpp
+        AstDispatcher.hpp
+        AstDispatcher.cpp
+        SemanticAnalyzer.hpp
+        SemanticAnalyzer.cpp
         RuleBase.hpp
+        RuleBase.cpp
         rules/common/CallChecker.hpp
         rules/common/CallChecker.cpp
         rules/types/ArrayTypeRule.hpp
+        rules/types/ArrayTypeRule.cpp
         rules/types/IdentifierTypeRule.hpp
+        rules/types/IdentifierTypeRule.cpp
         rules/types/PrimitiveTypeRule.hpp
+        rules/types/PrimitiveTypeRule.cpp
         rules/types/RecordTypeRule.hpp
+        rules/types/RecordTypeRule.cpp
         rules/expressions/LiteralRules.hpp
+        rules/expressions/LiteralRules.cpp
         rules/expressions/IdentifierRule.hpp
+        rules/expressions/IdentifierRule.cpp
         rules/expressions/UnaryRule.hpp
+        rules/expressions/UnaryRule.cpp
         rules/expressions/BinaryRule.hpp
+        rules/expressions/BinaryRule.cpp
         rules/expressions/FieldAccessRule.hpp
+        rules/expressions/FieldAccessRule.cpp
         rules/expressions/ElementAccessRule.hpp
+        rules/expressions/ElementAccessRule.cpp
         rules/expressions/RoutineCallExprRule.hpp
+        rules/expressions/RoutineCallExprRule.cpp
         rules/declarations/ProgramRule.hpp
+        rules/declarations/ProgramRule.cpp
         rules/declarations/VariableDeclarationRule.hpp
+        rules/declarations/VariableDeclarationRule.cpp
         rules/declarations/TypeDeclarationRule.hpp
+        rules/declarations/TypeDeclarationRule.cpp
         rules/declarations/RoutineDeclarationRule.hpp
+        rules/declarations/RoutineDeclarationRule.cpp
+        rules/statements/AssignRule.hpp
+        rules/statements/AssignRule.cpp
+        rules/statements/RoutineCallStmtRule.hpp
+        rules/statements/RoutineCallStmtRule.cpp
+        rules/statements/PrintRule.hpp
+        rules/statements/PrintRule.cpp
+        rules/statements/ReturnRule.hpp
+        rules/statements/ReturnRule.cpp
+        rules/statements/IfRule.hpp
+        rules/statements/IfRule.cpp
+        rules/statements/WhileRule.hpp
+        rules/statements/WhileRule.cpp
+        rules/statements/ForRule.hpp
+        rules/statements/ForRule.cpp
 )
 
 target_include_directories(semantics PUBLIC 

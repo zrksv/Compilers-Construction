@@ -1,6 +1,8 @@
 #include <iostream>
 #include <cassert>
 #include <memory>
+#include <sstream>
+#include <string>
 #include <vector>
 
 #include "types/Type.hpp"
@@ -13,7 +15,7 @@
 #include "Results.hpp"
 #include "Context.hpp"
 #include "Services.hpp"
-#include "Dispatcher.hpp"
+#include "AstDispatcher.hpp"
 #include "RuleBase.hpp"
 
 #include "rules/common/CallChecker.hpp"
@@ -35,92 +37,8 @@
 #include "rules/declarations/TypeDeclarationRule.hpp"
 #include "rules/declarations/RoutineDeclarationRule.hpp"
 #include "ast/AST.hpp"
-
-class TestDispatcher : public Dispatcher {
-public:
-    Services& services;
-
-    PrimitiveTypeRule prim_rule;
-    IdentifierTypeRule id_type_rule;
-    ArrayTypeRule array_type_rule;
-    RecordTypeRule record_type_rule;
-
-    IntLiteralRule int_lit_rule;
-    RealLiteralRule real_lit_rule;
-    BoolLiteralRule bool_lit_rule;
-    IdentifierRule id_rule;
-    UnaryRule unary_rule;
-    BinaryRule binary_rule;
-    FieldAccessRule field_access_rule;
-    ElementAccessRule elem_access_rule;
-    RoutineCallExprRule call_expr_rule;
-
-    ProgramRule program_rule;
-    VariableDeclarationRule var_decl_rule;
-    TypeDeclarationRule type_decl_rule;
-    RoutineDeclarationRule routine_decl_rule;
-
-    TestDispatcher(Services& s)
-        : services(s),
-          prim_rule(*this, s),
-          id_type_rule(*this, s),
-          array_type_rule(*this, s),
-          record_type_rule(*this, s),
-          int_lit_rule(*this, s),
-          real_lit_rule(*this, s),
-          bool_lit_rule(*this, s),
-          id_rule(*this, s),
-          unary_rule(*this, s),
-          binary_rule(*this, s),
-          field_access_rule(*this, s),
-          elem_access_rule(*this, s),
-          call_expr_rule(*this, s),
-          program_rule(*this, s),
-          var_decl_rule(*this, s),
-          type_decl_rule(*this, s),
-          routine_decl_rule(*this, s) {}
-
-    ExprResult expression(Expression* node, const Context& ctx) override {
-        if (!node) return ExprResult::error();
-        if (auto* e = dynamic_cast<IntLiteral*>(node)) return int_lit_rule.analyze(*e, ctx);
-        if (auto* e = dynamic_cast<RealLiteral*>(node)) return real_lit_rule.analyze(*e, ctx);
-        if (auto* e = dynamic_cast<BoolLiteral*>(node)) return bool_lit_rule.analyze(*e, ctx);
-        if (auto* e = dynamic_cast<Identifier*>(node)) return id_rule.analyze(*e, ctx);
-        if (auto* e = dynamic_cast<UnaryExpr*>(node)) return unary_rule.analyze(*e, ctx);
-        if (auto* e = dynamic_cast<BinaryExpr*>(node)) return binary_rule.analyze(*e, ctx);
-        if (auto* e = dynamic_cast<FieldAccessExpr*>(node)) return field_access_rule.analyze(*e, ctx);
-        if (auto* e = dynamic_cast<ElementAccessExpr*>(node)) return elem_access_rule.analyze(*e, ctx);
-        if (auto* e = dynamic_cast<RoutineCallExpr*>(node)) return call_expr_rule.analyze(*e, ctx);
-        return ExprResult::error();
-    }
-
-    TypeRef type(TypeNode* node, const Context& ctx) override {
-        if (!node) return PrimitiveType::get_error();
-        if (auto* t = dynamic_cast<PrimitiveTypeNode*>(node)) return prim_rule.resolve(*t, ctx);
-        if (auto* t = dynamic_cast<IdentifierTypeNode*>(node)) return id_type_rule.resolve(*t, ctx);
-        if (auto* t = dynamic_cast<ArrayTypeNode*>(node)) return array_type_rule.resolve(*t, ctx);
-        if (auto* t = dynamic_cast<RecordTypeNode*>(node)) return record_type_rule.resolve(*t, ctx);
-        return PrimitiveType::get_error();
-    }
-
-    StmtResult statement(AstNode* node, const Context& ctx) override {
-        if (!node) return StmtResult{};
-        if (auto* d = dynamic_cast<Program*>(node)) return program_rule.analyze(*d, ctx);
-        if (auto* d = dynamic_cast<VariableDeclaration*>(node)) return var_decl_rule.analyze(*d, ctx);
-        if (auto* d = dynamic_cast<TypeDeclaration*>(node)) return type_decl_rule.analyze(*d, ctx);
-        if (auto* d = dynamic_cast<RoutineDeclaration*>(node)) return routine_decl_rule.analyze(*d, ctx);
-        return StmtResult{};
-    }
-
-    StmtResult statement_list(const std::vector<std::unique_ptr<AstNode>>& nodes, const Context& ctx) override {
-        StmtResult res;
-        for (const auto& n : nodes) {
-            auto r = statement(n.get(), ctx);
-            if (r.returns) res.returns = true;
-        }
-        return res;
-    }
-};
+#include "ParserDriver.hpp"
+#include "SemanticAnalyzer.hpp"
 
 // Verifies properties and equality comparisons of primitive types
 void test_primitive_types() {
@@ -257,7 +175,7 @@ void test_declaration_analyzer_types_and_vars() {
     TypeFactory factory;
     SemanticModel model;
     Services services{diag, factory, model};
-    TestDispatcher disp(services);
+    AstDispatcher disp(services);
     Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
 
     // Valid type declaration
@@ -299,7 +217,7 @@ void test_declaration_analyzer_routines_and_forward() {
         TypeFactory factory;
         SemanticModel model;
         Services services{diag, factory, model};
-        TestDispatcher disp(services);
+        AstDispatcher disp(services);
         Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
 
         std::vector<std::unique_ptr<ParameterDeclaration>> params_fwd;
@@ -319,6 +237,7 @@ void test_declaration_analyzer_routines_and_forward() {
         params_def.push_back(std::make_unique<ParameterDeclaration>("b", std::make_unique<PrimitiveTypeNode>("integer", Location{5, 15}), Location{5, 15}));
         auto ret_type_def = std::make_unique<PrimitiveTypeNode>("integer", Location{5, 30});
         std::vector<std::unique_ptr<AstNode>> body;
+        body.push_back(std::make_unique<ReturnStatement>(std::make_unique<IntLiteral>(0, Location{6, 5}), Location{6, 5}));
         auto def_decl = std::make_unique<RoutineDeclaration>("sum", std::move(params_def), std::move(ret_type_def), std::move(body), Location{5, 1});
 
         disp.statement(def_decl.get(), ctx);
@@ -332,7 +251,7 @@ void test_declaration_analyzer_routines_and_forward() {
         TypeFactory factory;
         SemanticModel model;
         Services services{diag, factory, model};
-        TestDispatcher disp(services);
+        AstDispatcher disp(services);
         Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
 
         std::vector<std::unique_ptr<ParameterDeclaration>> p1;
@@ -354,7 +273,7 @@ void test_declaration_analyzer_routines_and_forward() {
         TypeFactory factory;
         SemanticModel model;
         Services services{diag, factory, model};
-        TestDispatcher disp(services);
+        AstDispatcher disp(services);
         Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
 
         std::vector<std::unique_ptr<ParameterDeclaration>> p;
@@ -425,7 +344,7 @@ void test_expression_operators() {
     TypeFactory factory;
     SemanticModel model;
     Services services{diag, factory, model};
-    TestDispatcher disp(services);
+    AstDispatcher disp(services);
     Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
     Location loc{1, 1};
 
@@ -487,7 +406,7 @@ void test_member_and_element_access() {
     TypeFactory factory;
     SemanticModel model;
     Services services{diag, factory, model};
-    TestDispatcher disp(services);
+    AstDispatcher disp(services);
     Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
     Location loc{1, 1};
 
@@ -547,7 +466,7 @@ void test_routine_call_expressions() {
     TypeFactory factory;
     SemanticModel model;
     Services services{diag, factory, model};
-    TestDispatcher disp(services);
+    AstDispatcher disp(services);
     Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
     Location loc{1, 1};
 
@@ -590,7 +509,7 @@ void test_declaration_expression_inference() {
     TypeFactory factory;
     SemanticModel model;
     Services services{diag, factory, model};
-    TestDispatcher disp(services);
+    AstDispatcher disp(services);
     Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
     Location loc{1, 1};
 
@@ -617,7 +536,7 @@ void test_unsized_array_restrictions() {
     TypeFactory factory;
     SemanticModel model;
     Services services{diag, factory, model};
-    TestDispatcher disp(services);
+    AstDispatcher disp(services);
     Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
     Location loc{1, 1};
 
@@ -649,7 +568,7 @@ void test_initializer_precedence() {
     TypeFactory factory;
     SemanticModel model;
     Services services{diag, factory, model};
-    TestDispatcher disp(services);
+    AstDispatcher disp(services);
     Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
     Location loc{1, 1};
 
@@ -686,7 +605,7 @@ void test_equality_operator_types() {
     TypeFactory factory;
     SemanticModel model;
     Services services{diag, factory, model};
-    TestDispatcher disp(services);
+    AstDispatcher disp(services);
     Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
     Location loc{1, 1};
 
@@ -723,7 +642,7 @@ void test_unsized_array_only_in_parameters() {
     TypeFactory factory;
     SemanticModel model;
     Services services{diag, factory, model};
-    TestDispatcher disp(services);
+    AstDispatcher disp(services);
     Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
     Location loc{1, 1};
 
@@ -743,7 +662,7 @@ void test_secondary_error_suppression() {
     TypeFactory factory;
     SemanticModel model;
     Services services{diag, factory, model};
-    TestDispatcher disp(services);
+    AstDispatcher disp(services);
     Context ctx(&model.global_scope(), nullptr, TypeUse::Variable);
     Location loc{1, 1};
 
@@ -758,6 +677,577 @@ void test_secondary_error_suppression() {
     assert(diag.get_errors()[0].message.find("not declared") != std::string::npos);
 
     std::cout << "[PASS] test_secondary_error_suppression\n";
+}
+
+// ============================================================================
+// Tests on source text (parser + SemanticAnalyzer)
+// ============================================================================
+
+struct Run {
+    ParserDriver driver;
+    SemanticAnalyzer analyzer;
+    bool ok = false;
+
+    explicit Run(const std::string& code) {
+        bool parsed = driver.parse(code);
+        assert(parsed && "Test program must be syntactically valid");
+        ok = analyzer.analyze(dynamic_cast<Program*>(driver.get_ast()));
+    }
+
+    const std::vector<SemanticError>& errors() {
+        return analyzer.get_diagnostics().get_errors();
+    }
+
+    Program& program() {
+        return *dynamic_cast<Program*>(driver.get_ast());
+    }
+};
+
+void print_errors(const std::vector<SemanticError>& errors) {
+    for (const auto& err : errors) {
+        std::cerr << "    " << err.location.row << ":" << err.location.column << " " << err.message << "\n";
+    }
+}
+
+void expect_valid(const std::string& code) {
+    Run run(code);
+    if (!run.errors().empty()) {
+        std::cerr << "Unexpected semantic errors in:\n" << code << "\n";
+        print_errors(run.errors());
+    }
+    assert(run.ok && run.errors().empty());
+}
+
+void expect_error_at(const std::string& code, size_t row) {
+    Run run(code);
+    bool found = false;
+    for (const auto& err : run.errors()) {
+        if (err.location.row == row) {
+            found = true;
+        }
+    }
+    if (!found) {
+        std::cerr << "Expected a semantic error on line " << row << " in:\n" << code << "\n";
+        print_errors(run.errors());
+    }
+    assert(!run.ok && found);
+}
+
+void test_unsized_parameter_accepts_any_array() {
+    expect_valid(R"(type five is array [5] integer
+routine total(a : array [] integer) : integer is
+    return a.size
+end
+routine main() is
+    var x : array [3] integer
+    var y : five
+    print total(x)
+    print total(y)
+end)");
+
+    expect_error_at(R"(routine total(a : array [] integer) : integer is
+    return a.size
+end
+routine main() is
+    var r : array [3] real
+    print total(r)
+end)", 6);
+
+    std::cout << "[PASS] test_unsized_parameter_accepts_any_array\n";
+}
+
+void test_explicit_type_initializer_from_source() {
+    expect_error_at("var b : boolean is 2.5", 1);
+    expect_valid("var b : boolean is 1");
+    expect_valid("var r : real is 2");
+    expect_error_at(R"(var a : array [2] integer
+var i : integer is a)", 2);
+
+    std::cout << "[PASS] test_explicit_type_initializer_from_source\n";
+}
+
+void test_unsized_array_positions_from_source() {
+    expect_error_at("var v : array [] integer", 1);
+    expect_error_at(R"(routine f() : array [] integer is
+end)", 1);
+    expect_error_at("var v : array [3] array [] integer", 1);
+    expect_error_at(R"(type open is array [] integer
+routine f(a : open) is
+end)", 1);
+    expect_error_at(R"(type R is record
+    var items : array [] integer
+end)", 2);
+
+    std::cout << "[PASS] test_unsized_array_positions_from_source\n";
+}
+
+void test_aggregates_are_not_comparable() {
+    expect_error_at(R"(type R is record var x : integer end
+routine main() is
+    var a : R
+    var b : R
+    print a = b
+end)", 5);
+
+    expect_error_at(R"(routine main() is
+    var a : array [2] integer
+    var b : array [2] integer
+    print a /= b
+end)", 4);
+
+    std::cout << "[PASS] test_aggregates_are_not_comparable\n";
+}
+
+void test_record_field_initializers() {
+    expect_valid(R"(type R is record
+    var x is 5
+    var y : real is 1
+end
+routine main() is
+    var r : R
+    r.x := 7
+end)");
+
+    expect_error_at(R"(type R is record
+    var x is 5
+end
+routine main() is
+    var r : R
+    var a : array [2] integer
+    r.x := a
+end)", 7);
+
+    expect_error_at(R"(type R is record
+    var x : integer is undefined_name
+end)", 2);
+
+    Run run(R"(type R is record
+    var x is undefined_name
+end)");
+    assert(run.errors().size() == 1);
+    assert(run.errors()[0].message.find("not declared") != std::string::npos);
+
+    std::cout << "[PASS] test_record_field_initializers\n";
+}
+
+void test_records_from_different_scopes_are_distinct() {
+    expect_valid(R"(type R is record var x : integer end
+routine main() is
+    var a : R
+    var b : R
+    a := b
+end)");
+
+    expect_error_at(R"(type R is record var x : integer end
+var outer : R
+routine main() is
+    type R is record var x : integer end
+    var inner : R
+    outer := inner
+end)", 6);
+
+    expect_error_at(R"(type A is record var x : integer end
+type B is record var x : integer end
+routine main() is
+    var a : A
+    var b : B
+    a := b
+end)", 6);
+
+    std::cout << "[PASS] test_records_from_different_scopes_are_distinct\n";
+}
+
+void test_model_records_types_and_conversions() {
+    Run run(R"(var r : real is 2
+var a is 1
+var b is a + 1
+routine twice(n : integer) : integer => n * 2
+var c is twice(a))");
+    assert(run.ok);
+
+    auto& decls = run.program().declarations;
+    SemanticModel& model = run.analyzer.get_model();
+
+    auto* r_decl = dynamic_cast<VariableDeclaration*>(decls[0].get());
+    assert(r_decl && r_decl->expression);
+    assert(model.type_of(r_decl->expression.get())->is_integer());
+    assert(model.conversion_of(r_decl->expression.get()) == ConversionKind::IntegerToReal);
+
+    auto* b_decl = dynamic_cast<VariableDeclaration*>(decls[2].get());
+    auto* sum = dynamic_cast<BinaryExpr*>(b_decl->expression.get());
+    assert(sum);
+    assert(model.type_of(sum)->is_integer());
+    auto* a_use = dynamic_cast<Identifier*>(sum->left.get());
+    assert(a_use);
+    assert(model.type_of(a_use)->is_integer());
+    const VariableSymbol* bound = model.variable_of(a_use);
+    assert(bound && bound->name == "a");
+
+    auto* c_decl = dynamic_cast<VariableDeclaration*>(decls[4].get());
+    auto* call = dynamic_cast<RoutineCallExpr*>(c_decl->expression.get());
+    assert(call);
+    const RoutineSymbol* callee = model.routine_of(call);
+    assert(callee && callee->name == "twice");
+    assert(model.type_of(call)->is_integer());
+
+    std::cout << "[PASS] test_model_records_types_and_conversions\n";
+}
+
+void test_assignment_conversions() {
+    expect_valid(R"(routine main() is
+    var i : integer
+    var r : real
+    var b : boolean
+    i := 2.5
+    i := true
+    r := 1
+    r := false
+    b := 1
+    b := true
+end)");
+
+    expect_error_at(R"(routine main() is
+    var b : boolean
+    b := 2.5
+end)", 3);
+
+    expect_error_at(R"(routine main() is
+    x := 1
+end)", 2);
+
+    expect_error_at(R"(routine main() is
+    x := 1
+    var x : integer
+end)", 2);
+
+    std::cout << "[PASS] test_assignment_conversions\n";
+}
+
+void test_aggregate_assignment() {
+    expect_valid(R"(type A is record var x : integer end
+type C is A
+routine main() is
+    var a : A
+    var a2 : A
+    var c : C
+    a := a2
+    a := c
+end)");
+
+    expect_error_at(R"(type A is record var x : integer end
+type B is record var x : integer end
+routine main() is
+    var a : A
+    var b : B
+    a := b
+end)", 6);
+
+    std::cout << "[PASS] test_aggregate_assignment\n";
+}
+
+void test_assignment_targets() {
+    expect_valid(R"(type P is record var x : integer end
+routine main() is
+    var ps : array [2] P
+    ps[1].x := 5
+    for p in ps loop
+        p.x := 1
+    end
+end)");
+
+    expect_error_at(R"(routine main() is
+    var a : array [3] integer
+    a.size := 5
+end)", 3);
+
+    expect_error_at(R"(routine main() is
+    for i in 1 .. 3 loop
+        i := 2
+    end
+end)", 3);
+
+    std::cout << "[PASS] test_assignment_targets\n";
+}
+
+void test_conditions() {
+    expect_valid(R"(routine main() is
+    var n : integer
+    if true then
+    end
+    if 1 then
+    else
+    end
+    while false loop
+    end
+    while n loop
+    end
+end)");
+
+    expect_error_at(R"(routine main() is
+    if 2.5 then
+    end
+end)", 2);
+
+    expect_error_at(R"(type R is record var x : integer end
+routine main() is
+    var r : R
+    while r loop
+    end
+end)", 4);
+
+    std::cout << "[PASS] test_conditions\n";
+}
+
+void test_for_loops() {
+    expect_valid(R"(routine main() is
+    for i in 1 .. 10 loop
+        print i
+    end
+    for i in 1 .. 10 reverse loop
+        var j : integer is i
+        if true then
+            var i is 5
+        end
+    end
+end)");
+
+    expect_error_at(R"(routine main() is
+    var a : array [3] real
+    for x in a loop
+        var b : boolean
+        b := x
+    end
+end)", 5);
+
+    expect_error_at(R"(routine main() is
+    for i in 1 .. 3 loop
+    end
+    print i
+end)", 4);
+
+    expect_error_at(R"(routine main() is
+    for x in 5 loop
+    end
+end)", 2);
+
+    expect_error_at(R"(type R is record var x : integer end
+routine main() is
+    var r : R
+    for i in 1 .. r loop
+    end
+end)", 4);
+
+    expect_error_at(R"(routine main() is
+    for i in 1 .. 3 loop
+        var i is 5
+    end
+end)", 3);
+
+    std::cout << "[PASS] test_for_loops\n";
+}
+
+void test_returns() {
+    expect_valid(R"(routine p(x : integer) is
+    if x > 0 then
+        return
+    end
+    print x
+end
+routine sign(x : integer) : integer is
+    if x > 0 then
+        return 1
+    else
+        if x < 0 then
+            return -1
+        else
+            return 0
+        end
+    end
+end
+routine find(x : integer) : integer is
+    for i in 1 .. 10 loop
+        if i = x then
+            return i
+        end
+    end
+    return 0
+end
+routine twice(x : integer) : integer => x * 2)");
+
+    expect_error_at(R"(routine p() is
+    return 1
+end)", 2);
+
+    expect_error_at(R"(routine f() : integer is
+    return
+end)", 2);
+
+    expect_error_at(R"(routine f() : boolean is
+    return 2.5
+end)", 2);
+
+    expect_error_at(R"(routine f() : integer is
+    var x is 1
+end)", 1);
+
+    expect_error_at(R"(routine f(x : integer) : integer is
+    if x > 0 then
+        return 1
+    end
+end)", 1);
+
+    expect_error_at(R"(routine f() : integer is
+    while true loop
+        return 1
+    end
+end)", 1);
+
+    expect_error_at("routine f() => 5", 1);
+    expect_error_at("routine f() : boolean => 2.5", 1);
+
+    std::cout << "[PASS] test_returns\n";
+}
+
+void test_routine_call_statements() {
+    expect_valid(R"(routine g(x : integer)
+routine h() : integer => 1
+routine countdown(n : integer) is
+    if n > 0 then
+        countdown(n - 1)
+    end
+end
+routine main() is
+    g(1)
+    h()
+    countdown(3)
+end
+routine g(x : integer) is
+    print x
+end)");
+
+    expect_error_at(R"(routine main() is
+    g(1)
+end
+routine g(x : integer) is
+    print x
+end)", 2);
+
+    expect_error_at(R"(routine g(x : integer, y : integer) is
+end
+routine main() is
+    g(1)
+end)", 4);
+
+    expect_error_at(R"(routine g(flag : boolean) is
+end
+routine main() is
+    g(2.5)
+end)", 4);
+
+    std::cout << "[PASS] test_routine_call_statements\n";
+}
+
+void test_print() {
+    expect_valid(R"(routine main() is
+    print 1, 2.5, true
+end)");
+
+    expect_error_at(R"(type R is record var x : integer end
+routine main() is
+    var r : R
+    print r
+end)", 4);
+
+    expect_error_at(R"(routine main() is
+    var a : array [2] integer
+    print 1, a
+end)", 3);
+
+    std::cout << "[PASS] test_print\n";
+}
+
+void test_scopes() {
+    expect_valid(R"(routine main() is
+    var x : integer
+    if true then
+        var x : real is 1.5
+        x := 2.5
+    end
+    x := 1
+end)");
+
+    expect_error_at(R"(routine main() is
+    if true then
+        var y : integer
+    end
+    y := 1
+end)", 5);
+
+    expect_error_at(R"(routine f(a : integer) is
+    var a : integer
+end)", 2);
+
+    expect_error_at(R"(routine main() is
+    while true loop
+        var y is z
+    end
+end)", 3);
+
+    std::cout << "[PASS] test_scopes\n";
+}
+
+void test_unified_namespace() {
+    expect_error_at(R"(var x : integer
+type x is real)", 2);
+
+    expect_error_at(R"(var f : integer
+routine f() is
+end)", 2);
+
+    expect_error_at(R"(routine f() is
+end
+type f is integer)", 3);
+
+    expect_valid(R"(type t is integer
+var v : t
+routine main() is
+    var t : integer
+    t := 1
+end)");
+
+    expect_error_at(R"(var x : integer
+var x : real)", 2);
+
+    std::cout << "[PASS] test_unified_namespace\n";
+}
+
+void test_diagnostics_order_and_format() {
+    Run run(R"(routine main() is
+    print undefined_a
+end
+var bad is undefined_b)");
+    const auto& errors = run.errors();
+
+    assert(errors.size() >= 2);
+    for (size_t i = 1; i < errors.size(); ++i) {
+        assert(errors[i - 1].location.row <= errors[i].location.row);
+    }
+    assert(errors.front().location.row == 2);
+    assert(errors.back().location.row == 4);
+
+    Diagnostics diagnostics;
+    diagnostics.report({3, 7}, "second");
+    diagnostics.report({1, 2}, "first");
+    diagnostics.sort();
+    std::ostringstream out;
+    diagnostics.print(out);
+    assert(out.str() == "Error at 1:2 - first\nError at 3:7 - second\n");
+
+    SemanticAnalyzer analyzer;
+    assert(!analyzer.analyze(nullptr));
+    assert(analyzer.get_diagnostics().has_errors());
+
+    std::cout << "[PASS] test_diagnostics_order_and_format\n";
 }
 
 int main() {
@@ -779,6 +1269,24 @@ int main() {
     test_equality_operator_types();
     test_unsized_array_only_in_parameters();
     test_secondary_error_suppression();
+    test_unsized_parameter_accepts_any_array();
+    test_explicit_type_initializer_from_source();
+    test_unsized_array_positions_from_source();
+    test_aggregates_are_not_comparable();
+    test_record_field_initializers();
+    test_records_from_different_scopes_are_distinct();
+    test_model_records_types_and_conversions();
+    test_assignment_conversions();
+    test_aggregate_assignment();
+    test_assignment_targets();
+    test_conditions();
+    test_for_loops();
+    test_returns();
+    test_routine_call_statements();
+    test_print();
+    test_scopes();
+    test_unified_namespace();
+    test_diagnostics_order_and_format();
     std::cout << "All semantics unit tests passed successfully!\n";
     return 0;
 }

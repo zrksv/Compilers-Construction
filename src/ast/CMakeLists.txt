@@ -1,4 +1,5 @@
 add_library(ast STATIC
+    ASTVisitor.hpp
     AST.cpp
     ASTPrinter.cpp
 )

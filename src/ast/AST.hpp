@@ -4,7 +4,7 @@
 #include <memory>
 #include "../common/Location.hpp"
 
-class AstPrinter;
+class AstVisitor;
 
 class AstNode {
 public:
@@ -12,7 +12,7 @@ public:
 
     virtual ~AstNode() = default;
 
-    virtual void accept(AstPrinter& printer) = 0;
+    virtual void accept(AstVisitor& visitor) = 0;
 };
 
 class Expression : public AstNode {};
@@ -29,7 +29,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 // ============================================================================
@@ -44,7 +44,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class RealLiteral : public Expression {
@@ -55,7 +55,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class BoolLiteral : public Expression {
@@ -66,7 +66,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class Identifier : public Expression {
@@ -77,7 +77,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class FieldAccessExpr : public Expression {
@@ -88,7 +88,7 @@ public:
         : object(std::move(object)), field_name(std::move(field_name)) {
         this->location = loc;
     }
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class ElementAccessExpr : public Expression {
@@ -101,7 +101,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 enum class UnaryOp {
@@ -118,7 +118,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 enum class BinOp {
@@ -138,7 +138,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class RoutineCallExpr : public Expression {
@@ -151,7 +151,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 // ============================================================================
@@ -173,7 +173,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class RoutineCallStmt : public Statement {
@@ -186,7 +186,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class PrintStatement : public Statement {
@@ -198,7 +198,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class IfStatement : public Statement {
@@ -215,7 +215,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class WhileStatement : public Statement {
@@ -228,7 +228,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class ForStatement : public Statement {
@@ -261,7 +261,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class ReturnStatement : public Statement {
@@ -273,7 +273,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 // ============================================================================
@@ -288,7 +288,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class IdentifierTypeNode : public TypeNode {
@@ -299,7 +299,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class ArrayTypeNode : public TypeNode {
@@ -312,7 +312,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 // ============================================================================
@@ -329,7 +329,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class VariableDeclaration : public Declaration {
@@ -343,7 +343,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class RecordTypeNode : public TypeNode {
@@ -355,7 +355,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 enum class RoutineBodyType {
@@ -406,7 +406,7 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };
 
 class TypeDeclaration : public Declaration {
@@ -419,5 +419,5 @@ public:
         this->location = loc;
     }
 
-    void accept(AstPrinter& printer) override;
+    void accept(AstVisitor& visitor) override;
 };

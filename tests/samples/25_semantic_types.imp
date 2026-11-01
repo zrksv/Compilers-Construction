@@ -1,0 +1,24 @@
+type point is record
+	var x : integer;
+	var y : integer;
+end
+
+routine main() is
+	var i : integer is 0;
+	var r : real is 1.5;
+	var p : point;
+	i := 2.5;
+	i := true;
+	r := i;
+	if i then
+		print i;
+	end
+	while r loop
+		print r;
+	end
+	print p;
+	p := i;
+	for k in 1 .. 2.5 loop
+		print k;
+	end
+end
