@@ -20,17 +20,17 @@ bool AstOptimizer::optimize(Program* program) {
 }
 
 bool AstOptimizer::fold_constants(Program* program) {
-    return ConstantFolder{}.run(program);
+    return ConstantFolder{m_model}.run(program);
 }
 
 bool AstOptimizer::prune_branches(Program* program) {
-    return BranchPruner{}.run(program);
+    return BranchPruner{m_model}.run(program);
 }
 
 bool AstOptimizer::eliminate_dead_code(Program* program) {
-    return DeadCodeEliminator{}.run(program);
+    return DeadCodeEliminator{m_model}.run(program);
 }
 
 bool AstOptimizer::remove_unused_variables(Program* program) {
-    return UnusedVariableEliminator{}.run(program);
+    return UnusedVariableEliminator{m_model}.run(program);
 }

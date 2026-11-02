@@ -34,4 +34,6 @@ public:
 
     void set_conversion(const Expression* expr, ConversionKind kind);
     ConversionKind conversion_of(const Expression* expr) const;
+
+    void forget(const AstNode* node);
 };

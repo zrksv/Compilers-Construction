@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Run AST optimizations
-    AstOptimizer optimizer;
+    AstOptimizer optimizer(analyzer.get_model());
     if (optimizer.optimize(program)) {
         cout << "\nOptimized AST:\n";
         AstPrinter printer(cout);

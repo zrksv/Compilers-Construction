@@ -8,6 +8,13 @@ bool DeadCodeEliminator::run(Program* program) {
     return m_changed;
 }
 
+void DeadCodeEliminator::drop_rest(const std::vector<std::unique_ptr<AstNode>>& stmts, size_t from) {
+    for (size_t j = from; j < stmts.size(); ++j) {
+        optimizer_utils::forget_subtree(m_model, stmts[j].get());
+        m_changed = true;
+    }
+}
+
 void DeadCodeEliminator::eliminate_in_statements(std::vector<std::unique_ptr<AstNode>>& stmts) {
     std::vector<std::unique_ptr<AstNode>> result;
 
@@ -17,7 +24,7 @@ void DeadCodeEliminator::eliminate_in_statements(std::vector<std::unique_ptr<Ast
 
         if (dynamic_cast<ReturnStatement*>(stmt.get())) {
             result.push_back(std::move(stmt));
-            if (i + 1 < stmts.size()) m_changed = true;
+            drop_rest(stmts, i + 1);
             break;
         }
 
@@ -28,7 +35,7 @@ void DeadCodeEliminator::eliminate_in_statements(std::vector<std::unique_ptr<Ast
 
             if (optimizer_utils::ends_with_return(ifs->then_body) &&
                 optimizer_utils::ends_with_return(ifs->else_body)) {
-                if (i + 1 < stmts.size()) m_changed = true;
+                drop_rest(stmts, i + 1);
                 break;
             }
             continue;

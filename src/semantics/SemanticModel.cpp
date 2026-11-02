@@ -43,3 +43,17 @@ ConversionKind SemanticModel::conversion_of(const Expression* expr) const {
     auto it = m_conversions.find(expr);
     return it != m_conversions.end() ? it->second : ConversionKind::None;
 }
+
+void SemanticModel::forget(const AstNode* node) {
+    if (!node) {
+        return;
+    }
+    m_routine_bindings.erase(node);
+    if (const auto* expr = dynamic_cast<const Expression*>(node)) {
+        m_expr_types.erase(expr);
+        m_conversions.erase(expr);
+    }
+    if (const auto* id = dynamic_cast<const Identifier*>(node)) {
+        m_var_bindings.erase(id);
+    }
+}
