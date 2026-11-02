@@ -1,0 +1,6 @@
+routine main() is
+    var arr : array [5] integer
+    var b : boolean is 2
+    var x is 10 / 0
+    var y is arr[10]
+end
