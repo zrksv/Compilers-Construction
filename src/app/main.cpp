@@ -7,6 +7,7 @@
 #include "ParserDriver.hpp"
 #include "ASTPrinter.hpp"
 #include "SemanticAnalyzer.hpp"
+#include "optimizer/AstOptimizer.hpp"
 
 using namespace std;
 
@@ -94,6 +95,15 @@ int main(int argc, char* argv[]) {
     if (ast) {
         AstPrinter printer(cout);
         ast->accept(printer);
+        cout << "\n";
+    }
+
+    // Run AST optimizations
+    AstOptimizer optimizer;
+    if (optimizer.optimize(program)) {
+        cout << "\nOptimized AST:\n";
+        AstPrinter printer(cout);
+        program->accept(printer);
         cout << "\n";
     }
 
