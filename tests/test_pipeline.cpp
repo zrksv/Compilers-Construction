@@ -9,6 +9,7 @@
 #include "ParserDriver.hpp"
 #include "ASTPrinter.hpp"
 #include "SemanticAnalyzer.hpp"
+#include "optimizer/AstOptimizer.hpp"
 
 void run_pipeline_test(const std::string& sample_name, bool to_file = false) {
     std::string path = resolve_path(sample_name);
@@ -70,6 +71,14 @@ void run_pipeline_test(const std::string& sample_name, bool to_file = false) {
     }
     assert(semantic_success && "Semantic analysis failed!");
     out << "=== Semantic Analysis OK ===\n";
+
+    auto* program = dynamic_cast<Program*>(ast);
+    AstOptimizer optimizer;
+    if (program && optimizer.optimize(program)) {
+        out << "\n=== Optimized AST ===\n";
+        program->accept(printer);
+        out << "\n";
+    }
 
     if (!to_file) {
         std::cout << "[PASS] " << sample_name << "\n\n";
@@ -173,6 +182,7 @@ int main() {
     run_pipeline_test("18_arrow_routines.imp", true);
     run_pipeline_test("19_record_return.imp", true);
     run_pipeline_test("20_array_of_array.imp", true);
+    run_pipeline_test("28_optimization_demo.imp", true);
 
     std::cout << "\n=== Running Pipeline Semantic Error Tests ===\n";
 
@@ -180,6 +190,7 @@ int main() {
     run_pipeline_semantic_error_test("25_semantic_types.imp", {16, 19, 20});
     run_pipeline_semantic_error_test("26_semantic_routines.imp", {6, 9, 16, 18});
     run_pipeline_semantic_error_test("27_semantic_scopes_readonly.imp", {14, 16, 18, 19});
+    run_pipeline_semantic_error_test("29_semantic_checks.imp", {3, 4, 5});
 
     std::cout << "\n=== Running Pipeline Error Tests (Parser Recovery) ===\n";
 
@@ -188,6 +199,6 @@ int main() {
     run_pipeline_error_test("23_syntax_error_declarations.imp", {3, 6, 10});
     run_pipeline_error_test("24_syntax_error_lexical.imp", {2, 3, 4});
 
-    std::cout << "\n[ALL PASS] 20 AST outputs, 4 semantic and 4 syntax error reports generated in " << test_output_dir().string() << "\n";
+    std::cout << "\n[ALL PASS] 21 AST outputs, 5 semantic and 4 syntax error reports generated in " << test_output_dir().string() << "\n";
     return 0;
 }
