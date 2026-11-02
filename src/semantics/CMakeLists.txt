@@ -19,6 +19,8 @@ add_library(semantics STATIC
         AstDispatcher.hpp
         AstDispatcher.cpp
         SemanticAnalyzer.hpp
+        ConstantEvaluator.hpp
+        ConstantEvaluator.cpp
         SemanticAnalyzer.cpp
         RuleBase.hpp
         RuleBase.cpp

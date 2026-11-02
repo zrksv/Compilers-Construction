@@ -1,4 +1,5 @@
 #include "rules/expressions/BinaryRule.hpp"
+#include "ConstantEvaluator.hpp"
 
 ExprResult BinaryRule::analyze(BinaryExpr& node, const Context& ctx) {
     auto left_res = m_dispatcher.expression(node.left.get(), ctx);
@@ -14,10 +15,34 @@ ExprResult BinaryRule::analyze(BinaryExpr& node, const Context& ctx) {
     switch (node.op) {
         case BinOp::Plus:
         case BinOp::Minus:
-        case BinOp::Mul:
+        case BinOp::Mul: {
+            if (!left_t->is_numeric() || !right_t->is_numeric()) {
+                error(node.location, "Arithmetic operator requires numeric operands");
+                return ExprResult::error();
+            }
+
+            if (left_t->is_real() || right_t->is_real()) {
+                if (left_t->is_integer()) {
+                    m_services.model.set_conversion(node.left.get(), ConversionKind::IntegerToReal);
+                }
+                if (right_t->is_integer()) {
+                    m_services.model.set_conversion(node.right.get(), ConversionKind::IntegerToReal);
+                }
+                return ExprResult::value(PrimitiveType::get_real());
+            }
+            return ExprResult::value(PrimitiveType::get_integer());
+        }
+
         case BinOp::Div: {
             if (!left_t->is_numeric() || !right_t->is_numeric()) {
                 error(node.location, "Arithmetic operator requires numeric operands");
+                return ExprResult::error();
+            }
+
+            auto right_val = ConstantEvaluator::evaluate(node.right.get());
+            if (right_val.has_value() && right_val.is_zero()) {
+                Location err_loc = node.right ? node.right->location : node.location;
+                error(err_loc, "Division by zero in constant expression");
                 return ExprResult::error();
             }
 
@@ -38,6 +63,14 @@ ExprResult BinaryRule::analyze(BinaryExpr& node, const Context& ctx) {
                 error(node.location, "Operator '%' requires integer operands");
                 return ExprResult::error();
             }
+
+            auto right_val = ConstantEvaluator::evaluate(node.right.get());
+            if (right_val.has_value() && right_val.is_zero()) {
+                Location err_loc = node.right ? node.right->location : node.location;
+                error(err_loc, "Division by zero in constant expression");
+                return ExprResult::error();
+            }
+
             return ExprResult::value(PrimitiveType::get_integer());
         }
 

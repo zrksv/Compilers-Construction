@@ -1250,6 +1250,102 @@ var bad is undefined_b)");
     std::cout << "[PASS] test_diagnostics_order_and_format\n";
 }
 
+void test_array_bounds_checking() {
+    expect_valid(R"(routine main() is
+    var a : array [5] integer
+    a[1] := 10
+    a[5] := 50
+    print a[1], a[5]
+end)");
+
+    expect_error_at(R"(routine main() is
+    var a : array [5] integer
+    a[0] := 10
+end)", 3);
+
+    expect_error_at(R"(routine main() is
+    var a : array [5] integer
+    print a[6]
+end)", 3);
+
+    expect_error_at(R"(routine main() is
+    var a : array [5] integer
+    a[-1] := 10
+end)", 3);
+
+    expect_error_at(R"(routine main() is
+    var a : array [5] integer
+    print a[2 + 4]
+end)", 3);
+
+    std::cout << "[PASS] test_array_bounds_checking\n";
+}
+
+void test_division_by_zero() {
+    expect_valid(R"(routine main() is
+    var a is 10 / 2
+    var b is 10 % 3
+    var c is 10.0 / 2.5
+end)");
+
+    expect_error_at(R"(routine main() is
+    var a is 10 / 0
+end)", 2);
+
+    expect_error_at(R"(routine main() is
+    var a is 10 % 0
+end)", 2);
+
+    expect_error_at(R"(routine main() is
+    var a is 10.0 / 0.0
+end)", 2);
+
+    expect_error_at(R"(routine main() is
+    var a is 10 / (5 - 5)
+end)", 2);
+
+    std::cout << "[PASS] test_division_by_zero\n";
+}
+
+void test_strict_int_to_bool() {
+    expect_valid(R"(routine main() is
+    var b1 : boolean is 0
+    var b2 : boolean is 1
+    b1 := 1
+    b2 := 0
+    if 1 then
+    end
+    while 0 loop
+    end
+end)");
+
+    expect_error_at(R"(routine main() is
+    var b : boolean is 2
+end)", 2);
+
+    expect_error_at(R"(routine main() is
+    var b : boolean is -1
+end)", 2);
+
+    expect_error_at(R"(routine main() is
+    var b : boolean
+    b := 5
+end)", 3);
+
+    expect_error_at(R"(routine main() is
+    if 2 then
+    end
+end)", 2);
+
+    expect_error_at(R"(routine test(b : boolean) is
+end
+routine main() is
+    test(2)
+end)", 4);
+
+    std::cout << "[PASS] test_strict_int_to_bool\n";
+}
+
 int main() {
     std::cout << "=== Running Semantics Unit Tests ===\n";
     test_primitive_types();
@@ -1287,6 +1383,10 @@ int main() {
     test_scopes();
     test_unified_namespace();
     test_diagnostics_order_and_format();
+    test_array_bounds_checking();
+    test_division_by_zero();
+    test_strict_int_to_bool();
     std::cout << "All semantics unit tests passed successfully!\n";
     return 0;
 }
+

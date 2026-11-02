@@ -1,4 +1,5 @@
 #include "rules/common/CallChecker.hpp"
+#include "ConstantEvaluator.hpp"
 #include "Dispatcher.hpp"
 #include "Services.hpp"
 #include "Diagnostics.hpp"
@@ -56,6 +57,19 @@ const RoutineSymbol* CallChecker::check(const AstNode* call,
                                           "Argument " + std::to_string(i + 1) + " expects type " +
                                           param_type->to_string() + ", got " + arg_type->to_string());
         } else if (arguments[i]) {
+            if (param_type->unalias()->is_boolean() && arg_type->unalias()->is_integer()) {
+                auto val = ConstantEvaluator::evaluate(arguments[i].get());
+                if (val.has_value() && val.kind == ConstantKind::Integer) {
+                    if (val.int_val != 0 && val.int_val != 1) {
+                        Location arg_loc = arguments[i]->location;
+                        m_services.diagnostics.report(arg_loc,
+                            "Cannot convert integer value " + std::to_string(val.int_val) +
+                            " to boolean for argument " + std::to_string(i + 1) +
+                            " (only 0 and 1 are valid)");
+                        continue;
+                    }
+                }
+            }
             ConversionKind kind = TypeCompatibility::conversion(param_type, arg_type);
             m_services.model.set_conversion(arguments[i].get(), kind);
         }
