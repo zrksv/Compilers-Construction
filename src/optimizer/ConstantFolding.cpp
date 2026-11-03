@@ -15,7 +15,8 @@ std::unique_ptr<Expression> ConstantFolder::optimize_expr(std::unique_ptr<Expres
     auto val = ConstantEvaluator::evaluate(expr.get());
     if (val.has_value() && !optimizer_utils::is_literal(expr.get())) {
         m_changed = true;
-        return optimizer_utils::make_literal(val, expr->location);
+        auto literal = optimizer_utils::make_literal(val, expr->location);
+        return optimizer_utils::replace_expr(m_model, std::move(expr), std::move(literal));
     }
 
     if (auto* b = dynamic_cast<BinaryExpr*>(expr.get())) {
@@ -47,10 +48,14 @@ std::unique_ptr<Expression> ConstantFolder::simplify_binary(std::unique_ptr<Expr
     auto* bin = dynamic_cast<BinaryExpr*>(expr.get());
     if (!bin) return expr;
 
+    auto replace_with = [&](std::unique_ptr<Expression> replacement) {
+        m_changed = true;
+        return optimizer_utils::replace_expr(m_model, std::move(expr), std::move(replacement));
+    };
+
     auto val = ConstantEvaluator::evaluate(bin);
     if (val.has_value()) {
-        m_changed = true;
-        return optimizer_utils::make_literal(val, bin->location);
+        return replace_with(optimizer_utils::make_literal(val, bin->location));
     }
 
     auto L = ConstantEvaluator::evaluate(bin->left.get());
@@ -65,39 +70,31 @@ std::unique_ptr<Expression> ConstantFolder::simplify_binary(std::unique_ptr<Expr
     bool L_false = L.has_value() && L.kind == ConstantKind::Boolean && !L.bool_val;
     bool R_false = R.has_value() && R.kind == ConstantKind::Boolean && !R.bool_val;
 
-    if ((bin->op == BinOp::Plus && R_zero) || (bin->op == BinOp::Minus && R_zero)) {
-        m_changed = true; return std::move(bin->left);
+    TypeRef result_type = m_model.type_of(bin);
+    bool keeps_left_type = optimizer_utils::same_type(m_model.type_of(bin->left.get()), result_type);
+    bool keeps_right_type = optimizer_utils::same_type(m_model.type_of(bin->right.get()), result_type);
+    BinOp op = bin->op;
+
+    if (keeps_left_type && (((op == BinOp::Plus || op == BinOp::Minus) && R_zero) ||
+                            ((op == BinOp::Mul || op == BinOp::Div) && R_one) ||
+                            (op == BinOp::And && R_true) || (op == BinOp::Or && R_false))) {
+        return replace_with(std::move(bin->left));
     }
-    if (bin->op == BinOp::Plus && L_zero) {
-        m_changed = true; return std::move(bin->right);
-    }
-    if ((bin->op == BinOp::Mul || bin->op == BinOp::Div) && R_one) {
-        m_changed = true; return std::move(bin->left);
-    }
-    if (bin->op == BinOp::Mul && L_one) {
-        m_changed = true; return std::move(bin->right);
+    if (keeps_right_type && ((op == BinOp::Plus && L_zero) || (op == BinOp::Mul && L_one) ||
+                             (op == BinOp::And && L_true) || (op == BinOp::Or && L_false))) {
+        return replace_with(std::move(bin->right));
     }
 
-    if (bin->op == BinOp::Mul && ((R_zero && optimizer_utils::is_pure(bin->left.get())) ||
-                                  (L_zero && optimizer_utils::is_pure(bin->right.get())))) {
-        m_changed = true; return std::make_unique<IntLiteral>(0, bin->location);
+    if (op == BinOp::Mul && result_type && result_type->is_integer() &&
+        ((R_zero && optimizer_utils::is_pure(bin->left.get(), m_model)) ||
+         (L_zero && optimizer_utils::is_pure(bin->right.get(), m_model)))) {
+        return replace_with(std::make_unique<IntLiteral>(0, bin->location));
     }
-
-    if (bin->op == BinOp::And) {
-        if (R_true) { m_changed = true; return std::move(bin->left); }
-        if (L_true) { m_changed = true; return std::move(bin->right); }
-        if ((R_false && optimizer_utils::is_pure(bin->left.get())) ||
-            (L_false && optimizer_utils::is_pure(bin->right.get()))) {
-            m_changed = true; return std::make_unique<BoolLiteral>(false, bin->location);
-        }
+    if (op == BinOp::And && (L_false || (R_false && optimizer_utils::is_pure(bin->left.get(), m_model)))) {
+        return replace_with(std::make_unique<BoolLiteral>(false, bin->location));
     }
-    if (bin->op == BinOp::Or) {
-        if (R_false) { m_changed = true; return std::move(bin->left); }
-        if (L_false) { m_changed = true; return std::move(bin->right); }
-        if ((R_true && optimizer_utils::is_pure(bin->left.get())) ||
-            (L_true && optimizer_utils::is_pure(bin->right.get()))) {
-            m_changed = true; return std::make_unique<BoolLiteral>(true, bin->location);
-        }
+    if (op == BinOp::Or && (L_true || (R_true && optimizer_utils::is_pure(bin->left.get(), m_model)))) {
+        return replace_with(std::make_unique<BoolLiteral>(true, bin->location));
     }
     return expr;
 }

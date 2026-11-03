@@ -73,11 +73,18 @@ void run_pipeline_test(const std::string& sample_name, bool to_file = false) {
     out << "=== Semantic Analysis OK ===\n";
 
     auto* program = dynamic_cast<Program*>(ast);
-    AstOptimizer optimizer;
+    AstOptimizer optimizer(analyzer.get_model());
     if (program && optimizer.optimize(program)) {
         out << "\n=== Optimized AST ===\n";
         program->accept(printer);
         out << "\n";
+
+        SemanticAnalyzer reanalyzer;
+        bool still_valid = reanalyzer.analyze(program);
+        if (!still_valid) {
+            reanalyzer.get_diagnostics().print(std::cerr);
+        }
+        assert(still_valid && "Optimized AST must stay semantically valid");
     }
 
     if (!to_file) {

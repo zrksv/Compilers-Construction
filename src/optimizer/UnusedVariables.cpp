@@ -16,7 +16,8 @@ void UnusedVariableEliminator::eliminate_in_statements(std::vector<std::unique_p
         if (!stmt) continue;
 
         if (auto* var = dynamic_cast<VariableDeclaration*>(stmt.get())) {
-            if (in_routine && optimizer_utils::is_pure(var->expression.get())) {
+            if (in_routine && optimizer_utils::creation_is_pure(var->type.get(), m_model) &&
+                optimizer_utils::is_pure(var->expression.get(), m_model)) {
                 bool used = false;
                 for (size_t j = i + 1; j < stmts.size(); ++j) {
                     if (optimizer_utils::contains_identifier(stmts[j].get(), var->name)) {
@@ -26,6 +27,7 @@ void UnusedVariableEliminator::eliminate_in_statements(std::vector<std::unique_p
                 }
                 if (!used) {
                     m_changed = true;
+                    optimizer_utils::forget_subtree(m_model, var);
                     continue;
                 }
             }
