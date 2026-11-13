@@ -738,6 +738,43 @@ void expect_error_at(const std::string& code, size_t row) {
     assert(!run.ok && found);
 }
 
+void test_forward_definition_parameter_names() {
+    Run run(R"(routine f(x: integer): integer
+routine before(): integer => f(7)
+routine f(y: integer): integer => y
+routine after(): integer => f(8))");
+    assert(run.ok && run.errors().empty());
+
+    const auto& declarations = run.program().declarations;
+    const auto* before = dynamic_cast<const RoutineDeclaration*>(declarations[1].get());
+    const auto* definition = dynamic_cast<const RoutineDeclaration*>(declarations[2].get());
+    const auto* after = dynamic_cast<const RoutineDeclaration*>(declarations[3].get());
+    const auto& model = run.analyzer.get_model();
+    const auto* symbol = run.analyzer.get_global_scope().lookup_routine("f");
+    assert(before && definition && after && symbol && symbol->is_defined);
+    assert(model.routine_of(before->expression_body.get()) == symbol);
+    assert(model.routine_of(after->expression_body.get()) == symbol);
+
+    const auto* parameter = model.variable_of(definition->expression_body.get());
+    assert(parameter && parameter->name == "y");
+    assert(parameter->location.row == 3);
+
+    expect_error_at(R"(routine f(x: integer): integer
+routine f(y: integer): integer => x)", 2);
+
+    expect_valid(R"(routine f(x: integer): integer
+routine f(y: integer): integer is
+    var x is y
+    return x
+end)");
+
+    expect_error_at(R"(routine f(x: integer): integer
+routine f(y: integer): integer is
+    var y is 1
+    return y
+end)", 3);
+}
+
 void test_unsized_parameter_accepts_any_array() {
     expect_valid(R"(type five is array [5] integer
 routine total(a : array [] integer) : integer
@@ -812,6 +849,16 @@ end)", 1);
 end)", 2);
 
     std::cout << "[PASS] test_unsized_array_positions_from_source\n";
+}
+
+void test_fixed_array_size_requires_positive_integer_literal() {
+    expect_valid("type A is array [3] integer");
+    expect_error_at("type A is array [1 + 2] integer", 1);
+    expect_error_at("type A is array [1 - 1] integer", 1);
+    expect_error_at("type A is array [3.0] integer", 1);
+    expect_error_at("type A is array [0] integer", 1);
+    expect_error_at(R"(var n is 3
+type A is array [n] integer)", 2);
 }
 
 void test_aggregates_are_not_comparable() {
@@ -1434,10 +1481,12 @@ int main() {
     test_equality_operator_types();
     test_unsized_array_only_in_parameters();
     test_secondary_error_suppression();
+    test_forward_definition_parameter_names();
     test_unsized_parameter_accepts_any_array();
     test_unsized_array_does_not_match_fixed_type();
     test_explicit_type_initializer_from_source();
     test_unsized_array_positions_from_source();
+    test_fixed_array_size_requires_positive_integer_literal();
     test_aggregates_are_not_comparable();
     test_record_field_initializers();
     test_records_from_different_scopes_are_distinct();
