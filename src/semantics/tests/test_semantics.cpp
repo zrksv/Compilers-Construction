@@ -1221,6 +1221,42 @@ var x : real)", 2);
     std::cout << "[PASS] test_unified_namespace\n";
 }
 
+void test_shadowing_across_name_categories() {
+    expect_error_at(R"(routine f() is end
+routine main() is
+    var f is 1
+    if true then
+        f()
+    end
+end)", 5);
+
+    expect_error_at(R"(type T is integer
+routine main() is
+    var T is 1
+    var x: T
+end)", 4);
+
+    expect_error_at(R"(var x is 1
+routine main() is
+    type x is integer
+    print x
+end)", 4);
+
+    expect_valid(R"(var x is 1
+routine f() is end
+routine main() is
+    var x is x + 1
+    f()
+    if true then
+        var f is 2
+        print f
+    end
+    f()
+end)");
+
+    std::cout << "[PASS] test_shadowing_across_name_categories\n";
+}
+
 void test_diagnostics_order_and_format() {
     Run run(R"(routine main() is
     print undefined_a
@@ -1382,6 +1418,7 @@ int main() {
     test_print();
     test_scopes();
     test_unified_namespace();
+    test_shadowing_across_name_categories();
     test_diagnostics_order_and_format();
     test_array_bounds_checking();
     test_division_by_zero();
