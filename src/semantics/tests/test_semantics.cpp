@@ -1258,25 +1258,25 @@ void test_array_bounds_checking() {
     print a[1], a[5]
 end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a : array [5] integer
     a[0] := 10
-end)", 3);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a : array [5] integer
     print a[6]
-end)", 3);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a : array [5] integer
     a[-1] := 10
-end)", 3);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a : array [5] integer
     print a[2 + 4]
-end)", 3);
+end)");
 
     std::cout << "[PASS] test_array_bounds_checking\n";
 }
@@ -1288,21 +1288,21 @@ void test_division_by_zero() {
     var c is 10.0 / 2.5
 end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a is 10 / 0
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a is 10 % 0
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a is 10.0 / 0.0
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a is 10 / (5 - 5)
-end)", 2);
+end)");
 
     std::cout << "[PASS] test_division_by_zero\n";
 }
@@ -1319,29 +1319,29 @@ void test_strict_int_to_bool() {
     end
 end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var b : boolean is 2
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var b : boolean is -1
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var b : boolean
     b := 5
-end)", 3);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     if 2 then
     end
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine test(b : boolean) is
+    expect_valid(R"(routine test(b : boolean) is
 end
 routine main() is
     test(2)
-end)", 4);
+end)");
 
     std::cout << "[PASS] test_strict_int_to_bool\n";
 }

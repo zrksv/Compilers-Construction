@@ -1,4 +1,4 @@
-#include "DeadCode.hpp"
+    #include "DeadCode.hpp"
 #include "OptimizerUtils.hpp"
 
 bool DeadCodeEliminator::run(Program* program) {
@@ -8,49 +8,39 @@ bool DeadCodeEliminator::run(Program* program) {
     return m_changed;
 }
 
-void DeadCodeEliminator::drop_rest(const std::vector<std::unique_ptr<AstNode>>& stmts, size_t from) {
-    for (size_t j = from; j < stmts.size(); ++j) {
-        optimizer_utils::forget_subtree(m_model, stmts[j].get());
-        m_changed = true;
+bool DeadCodeEliminator::eliminate_in_statements(
+    std::vector<std::unique_ptr<AstNode>>& statements) {
+    for (auto it = statements.begin(); it != statements.end(); ++it) {
+        if (!eliminate_in_statement(it->get())) continue;
+
+        const auto unreachable = it + 1;
+        if (unreachable != statements.end()) {
+            for (auto tail = unreachable; tail != statements.end(); ++tail) {
+                optimizer_utils::forget_subtree(m_model, tail->get());
+            }
+            statements.erase(unreachable, statements.end());
+            m_changed = true;
+        }
+        return true;
     }
+    return false;
 }
 
-void DeadCodeEliminator::eliminate_in_statements(std::vector<std::unique_ptr<AstNode>>& stmts) {
-    std::vector<std::unique_ptr<AstNode>> result;
+bool DeadCodeEliminator::eliminate_in_statement(AstNode* statement) {
+    if (dynamic_cast<ReturnStatement*>(statement)) return true;
 
-    for (size_t i = 0; i < stmts.size(); ++i) {
-        auto& stmt = stmts[i];
-        if (!stmt) continue;
-
-        if (dynamic_cast<ReturnStatement*>(stmt.get())) {
-            result.push_back(std::move(stmt));
-            drop_rest(stmts, i + 1);
-            break;
-        }
-
-        if (auto* ifs = dynamic_cast<IfStatement*>(stmt.get())) {
-            eliminate_in_statements(ifs->then_body);
-            eliminate_in_statements(ifs->else_body);
-            result.push_back(std::move(stmt));
-
-            if (optimizer_utils::ends_with_return(ifs->then_body) &&
-                optimizer_utils::ends_with_return(ifs->else_body)) {
-                drop_rest(stmts, i + 1);
-                break;
-            }
-            continue;
-        }
-
-        if (auto* r = dynamic_cast<RoutineDeclaration*>(stmt.get())) {
-            eliminate_in_statements(r->body);
-        } else if (auto* whl = dynamic_cast<WhileStatement*>(stmt.get())) {
-            eliminate_in_statements(whl->body);
-        } else if (auto* f = dynamic_cast<ForStatement*>(stmt.get())) {
-            eliminate_in_statements(f->body);
-        }
-
-        result.push_back(std::move(stmt));
+    if (auto* branch = dynamic_cast<IfStatement*>(statement)) {
+        const bool then_returns = eliminate_in_statements(branch->then_body);
+        const bool else_returns = eliminate_in_statements(branch->else_body);
+        return then_returns && else_returns;
     }
 
-    stmts = std::move(result);
+    if (auto* routine = dynamic_cast<RoutineDeclaration*>(statement)) {
+        eliminate_in_statements(routine->body);
+    } else if (auto* loop = dynamic_cast<WhileStatement*>(statement)) {
+        eliminate_in_statements(loop->body);
+    } else if (auto* loop = dynamic_cast<ForStatement*>(statement)) {
+        eliminate_in_statements(loop->body);
+    }
+    return false;
 }

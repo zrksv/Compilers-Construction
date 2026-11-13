@@ -45,6 +45,8 @@ StmtResult VariableDeclarationRule::analyze(VariableDeclaration& node, const Con
     }
 
     VariableSymbol sym(node.name, var_type, false, node.location);
-    ctx.scope->declare_variable(sym);
+    if (ctx.scope->declare_variable(sym)) {
+        m_services.model.bind_variable(&node, ctx.scope->lookup_variable(node.name, false));
+    }
     return StmtResult{};
 }

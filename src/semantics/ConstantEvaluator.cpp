@@ -32,7 +32,7 @@ ConstantValue ConstantEvaluator::evaluate(const Expression* expr) {
 
             case UnaryOp::Minus:
                 if (child.kind == ConstantKind::Integer) {
-                    return ConstantValue::integer(-child.int_val);
+                    return ConstantValue::integer(static_cast<int32_t>(-child.int_val));
                 }
                 if (child.kind == ConstantKind::Real) {
                     return ConstantValue::real(-child.real_val);
@@ -50,23 +50,35 @@ ConstantValue ConstantEvaluator::evaluate(const Expression* expr) {
 
     if (const auto* bin = dynamic_cast<const BinaryExpr*>(expr)) {
         auto left = evaluate(bin->left.get());
+        if (!left.has_value()) {
+            return ConstantValue::none();
+        }
+        if (left.kind == ConstantKind::Boolean &&
+            ((bin->op == BinOp::And && !left.bool_val) || (bin->op == BinOp::Or && left.bool_val))) {
+            return left;
+        }
+
         auto right = evaluate(bin->right.get());
 
-        if (!left.has_value() || !right.has_value()) {
+        if (!right.has_value()) {
             return ConstantValue::none();
         }
 
         // Both operands are Integer
         if (left.kind == ConstantKind::Integer && right.kind == ConstantKind::Integer) {
+            // Products of two i32 values fit in int64_t. Narrowing wraps modulo 2^32 in C++20.
             switch (bin->op) {
                 case BinOp::Plus:
-                    return ConstantValue::integer(left.int_val + right.int_val);
+                    return ConstantValue::integer(static_cast<int32_t>(left.int_val + right.int_val));
                 case BinOp::Minus:
-                    return ConstantValue::integer(left.int_val - right.int_val);
+                    return ConstantValue::integer(static_cast<int32_t>(left.int_val - right.int_val));
                 case BinOp::Mul:
-                    return ConstantValue::integer(left.int_val * right.int_val);
+                    return ConstantValue::integer(static_cast<int32_t>(left.int_val * right.int_val));
                 case BinOp::Div:
-                    if (right.int_val == 0) return ConstantValue::none();
+                    // i32.div_s traps on zero and on the signed minimum divided by -1.
+                    if (right.int_val == 0 || (left.int_val == INT32_MIN && right.int_val == -1)) {
+                        return ConstantValue::none();
+                    }
                     return ConstantValue::integer(left.int_val / right.int_val);
                 case BinOp::Mod:
                     if (right.int_val == 0) return ConstantValue::none();
@@ -103,7 +115,6 @@ ConstantValue ConstantEvaluator::evaluate(const Expression* expr) {
                 case BinOp::Mul:
                     return ConstantValue::real(ld * rd);
                 case BinOp::Div:
-                    if (rd == 0.0) return ConstantValue::none();
                     return ConstantValue::real(ld / rd);
                 case BinOp::Equal:
                     return ConstantValue::boolean(ld == rd);

@@ -18,50 +18,9 @@ bool is_literal(const Expression* expr) {
 }
 
 void for_each_child(const AstNode* node, const std::function<void(const AstNode*)>& fn) {
-    if (!node) return;
-    if (const auto* r = dynamic_cast<const RoutineDeclaration*>(node)) {
-        if (r->expression_body) fn(r->expression_body.get());
-        for (const auto& s : r->body) fn(s.get());
-    } else if (const auto* b = dynamic_cast<const BinaryExpr*>(node)) {
-        fn(b->left.get()); fn(b->right.get());
-    } else if (const auto* u = dynamic_cast<const UnaryExpr*>(node)) {
-        fn(u->child.get());
-    } else if (const auto* a = dynamic_cast<const AssignStatement*>(node)) {
-        fn(a->target.get()); fn(a->value.get());
-    } else if (const auto* p = dynamic_cast<const PrintStatement*>(node)) {
-        for (const auto& item : p->to_print) fn(item.get());
-    } else if (const auto* c = dynamic_cast<const RoutineCallStmt*>(node)) {
-        for (const auto& arg : c->arguments) fn(arg.get());
-    } else if (const auto* c = dynamic_cast<const RoutineCallExpr*>(node)) {
-        for (const auto& arg : c->arguments) fn(arg.get());
-    } else if (const auto* i = dynamic_cast<const IfStatement*>(node)) {
-        fn(i->condition.get());
-        for (const auto& s : i->then_body) fn(s.get());
-        for (const auto& s : i->else_body) fn(s.get());
-    } else if (const auto* w = dynamic_cast<const WhileStatement*>(node)) {
-        fn(w->condition.get());
-        for (const auto& s : w->body) fn(s.get());
-    } else if (const auto* f = dynamic_cast<const ForStatement*>(node)) {
-        if (f->range_start) fn(f->range_start.get());
-        if (f->range_end) fn(f->range_end.get());
-        for (const auto& s : f->body) fn(s.get());
-    } else if (const auto* v = dynamic_cast<const VariableDeclaration*>(node)) {
-        if (v->type) fn(v->type.get());
-        if (v->expression) fn(v->expression.get());
-    } else if (const auto* t = dynamic_cast<const TypeDeclaration*>(node)) {
-        if (t->type) fn(t->type.get());
-    } else if (const auto* at = dynamic_cast<const ArrayTypeNode*>(node)) {
-        if (at->size) fn(at->size.get());
-        if (at->element_type) fn(at->element_type.get());
-    } else if (const auto* rt = dynamic_cast<const RecordTypeNode*>(node)) {
-        for (const auto& field : rt->declarations) fn(field.get());
-    } else if (const auto* ret = dynamic_cast<const ReturnStatement*>(node)) {
-        if (ret->expression) fn(ret->expression.get());
-    } else if (const auto* fa = dynamic_cast<const FieldAccessExpr*>(node)) {
-        fn(fa->object.get());
-    } else if (const auto* ea = dynamic_cast<const ElementAccessExpr*>(node)) {
-        fn(ea->array.get()); fn(ea->index.get());
-    }
+    detail::for_each_child(node, [&](const auto& child) {
+        if (child) fn(child.get());
+    });
 }
 
 static bool conversion_is_safe(const Expression* expr, const SemanticModel& model) {
@@ -80,73 +39,48 @@ static bool conversion_is_safe(const Expression* expr, const SemanticModel& mode
     return true;
 }
 
-static bool index_is_safe(const ElementAccessExpr* access, const SemanticModel& model) {
-    auto idx = ConstantEvaluator::evaluate(access->index.get());
-    if (idx.kind != ConstantKind::Integer) return false;
-    TypeRef array_type = model.type_of(access->array.get());
-    if (!array_type || !array_type->is_array()) return false;
-    auto arr = std::static_pointer_cast<ArrayType>(array_type->unalias());
-    return arr->size.has_value() && idx.int_val >= 1 &&
-           idx.int_val <= static_cast<int64_t>(arr->size.value());
-}
-
 static bool division_is_safe(const BinaryExpr* bin, const SemanticModel& model) {
     TypeRef result = model.type_of(bin);
     if (!result) return false;
     if (result->is_real()) return true;
     auto divisor = ConstantEvaluator::evaluate(bin->right.get());
-    return divisor.kind == ConstantKind::Integer && divisor.int_val != 0;
+    if (divisor.kind != ConstantKind::Integer || divisor.int_val == 0) return false;
+    if (bin->op == BinOp::Div && divisor.int_val == -1) {
+        auto dividend = ConstantEvaluator::evaluate(bin->left.get());
+        return dividend.kind == ConstantKind::Integer && dividend.int_val != INT32_MIN;
+    }
+    return true;
 }
 
-bool is_pure(const AstNode* node, const SemanticModel& model) {
+bool can_discard_evaluation(const AstNode* node, const SemanticModel& model) {
     if (!node) return true;
     if (dynamic_cast<const RoutineCallExpr*>(node) || dynamic_cast<const RoutineCallStmt*>(node)) return false;
     if (const auto* expr = dynamic_cast<const Expression*>(node)) {
         if (!conversion_is_safe(expr, model)) return false;
     }
-    if (const auto* ea = dynamic_cast<const ElementAccessExpr*>(node)) {
-        if (!index_is_safe(ea, model)) return false;
-    }
+
+    if (dynamic_cast<const ElementAccessExpr*>(node)) return false;
     if (const auto* b = dynamic_cast<const BinaryExpr*>(node)) {
         if ((b->op == BinOp::Div || b->op == BinOp::Mod) && !division_is_safe(b, model)) return false;
     }
-    bool pure = true;
-    for_each_child(node, [&](const AstNode* c) { if (pure && !is_pure(c, model)) pure = false; });
-    return pure;
+    bool can_discard = true;
+    for_each_child(node, [&](const AstNode* child) {
+        if (can_discard) can_discard = can_discard_evaluation(child, model);
+    });
+    return can_discard;
 }
 
-bool creation_is_pure(const TypeNode* type, const SemanticModel& model) {
-    if (!type || dynamic_cast<const PrimitiveTypeNode*>(type)) return true;
-    if (const auto* arr = dynamic_cast<const ArrayTypeNode*>(type)) {
-        return creation_is_pure(arr->element_type.get(), model);
+std::optional<bool> constant_condition(const Expression* expr, const SemanticModel& model) {
+    const auto value = ConstantEvaluator::evaluate(expr);
+    const auto conversion = model.conversion_of(expr);
+    if (value.kind == ConstantKind::Boolean && conversion == ConversionKind::None) {
+        return value.bool_val;
     }
-    if (const auto* rec = dynamic_cast<const RecordTypeNode*>(type)) {
-        for (const auto& field : rec->declarations) {
-            if (!creation_is_pure(field->type.get(), model) || !is_pure(field->expression.get(), model)) {
-                return false;
-            }
-        }
-        return true;
+    if (value.kind == ConstantKind::Integer && conversion == ConversionKind::IntegerToBoolean &&
+        (value.int_val == 0 || value.int_val == 1)) {
+        return value.int_val == 1;
     }
-    return false;
-}
-
-bool contains_identifier(const AstNode* node, const std::string& name) {
-    if (!node) return false;
-    if (const auto* id = dynamic_cast<const Identifier*>(node)) return id->name == name;
-    bool found = false;
-    for_each_child(node, [&](const AstNode* c) { if (!found && contains_identifier(c, name)) found = true; });
-    return found;
-}
-
-bool ends_with_return(const std::vector<std::unique_ptr<AstNode>>& stmts) {
-    if (stmts.empty()) return false;
-    const auto* last = stmts.back().get();
-    if (dynamic_cast<const ReturnStatement*>(last)) return true;
-    if (const auto* ifs = dynamic_cast<const IfStatement*>(last)) {
-        return ends_with_return(ifs->then_body) && ends_with_return(ifs->else_body);
-    }
-    return false;
+    return std::nullopt;
 }
 
 bool declares_names(const std::vector<std::unique_ptr<AstNode>>& stmts) {
@@ -156,10 +90,6 @@ bool declares_names(const std::vector<std::unique_ptr<AstNode>>& stmts) {
         }
     }
     return false;
-}
-
-bool same_type(const TypeRef& a, const TypeRef& b) {
-    return a && b && a->unalias()->equals(*b->unalias());
 }
 
 void forget_subtree(SemanticModel& model, const AstNode* node) {

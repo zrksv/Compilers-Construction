@@ -1,133 +1,117 @@
 #include "ConstantFolding.hpp"
 #include "OptimizerUtils.hpp"
-#include "../semantics/ConstantEvaluator.hpp"
+#include <type_traits>
 
 bool ConstantFolder::run(Program* program) {
     if (!program) return false;
     m_changed = false;
-    optimize_statements(program->declarations);
+    optimize_children(program);
     return m_changed;
 }
 
 std::unique_ptr<Expression> ConstantFolder::optimize_expr(std::unique_ptr<Expression> expr) {
-    if (!expr) return nullptr;
+    if (!expr || optimizer_utils::is_literal(expr.get())) return expr;
 
-    auto val = ConstantEvaluator::evaluate(expr.get());
-    if (val.has_value() && !optimizer_utils::is_literal(expr.get())) {
-        m_changed = true;
-        auto literal = optimizer_utils::make_literal(val, expr->location);
-        return optimizer_utils::replace_expr(m_model, std::move(expr), std::move(literal));
-    }
+    optimize_children(expr.get());
 
-    if (auto* b = dynamic_cast<BinaryExpr*>(expr.get())) {
-        b->left = optimize_expr(std::move(b->left));
-        b->right = optimize_expr(std::move(b->right));
-        return simplify_binary(std::move(expr));
-    }
-    if (auto* u = dynamic_cast<UnaryExpr*>(expr.get())) {
-        u->child = optimize_expr(std::move(u->child));
-        return expr;
-    }
-    if (auto* ea = dynamic_cast<ElementAccessExpr*>(expr.get())) {
-        ea->array = optimize_expr(std::move(ea->array));
-        ea->index = optimize_expr(std::move(ea->index));
-        return expr;
-    }
-    if (auto* fa = dynamic_cast<FieldAccessExpr*>(expr.get())) {
-        fa->object = optimize_expr(std::move(fa->object));
-        return expr;
-    }
-    if (auto* c = dynamic_cast<RoutineCallExpr*>(expr.get())) {
-        for (auto& a : c->arguments) a = optimize_expr(std::move(a));
-        return expr;
-    }
-    return expr;
-}
-
-std::unique_ptr<Expression> ConstantFolder::simplify_binary(std::unique_ptr<Expression> expr) {
-    auto* bin = dynamic_cast<BinaryExpr*>(expr.get());
-    if (!bin) return expr;
-
-    auto replace_with = [&](std::unique_ptr<Expression> replacement) {
-        m_changed = true;
-        return optimizer_utils::replace_expr(m_model, std::move(expr), std::move(replacement));
-    };
-
-    auto val = ConstantEvaluator::evaluate(bin);
-    if (val.has_value()) {
-        return replace_with(optimizer_utils::make_literal(val, bin->location));
-    }
-
-    auto L = ConstantEvaluator::evaluate(bin->left.get());
-    auto R = ConstantEvaluator::evaluate(bin->right.get());
-
-    bool L_zero = L.has_value() && L.is_zero();
-    bool R_zero = R.has_value() && R.is_zero();
-    bool L_one = L.has_value() && L.kind == ConstantKind::Integer && L.int_val == 1;
-    bool R_one = R.has_value() && R.kind == ConstantKind::Integer && R.int_val == 1;
-    bool L_true = L.has_value() && L.kind == ConstantKind::Boolean && L.bool_val;
-    bool R_true = R.has_value() && R.kind == ConstantKind::Boolean && R.bool_val;
-    bool L_false = L.has_value() && L.kind == ConstantKind::Boolean && !L.bool_val;
-    bool R_false = R.has_value() && R.kind == ConstantKind::Boolean && !R.bool_val;
-
-    TypeRef result_type = m_model.type_of(bin);
-    bool keeps_left_type = optimizer_utils::same_type(m_model.type_of(bin->left.get()), result_type);
-    bool keeps_right_type = optimizer_utils::same_type(m_model.type_of(bin->right.get()), result_type);
-    BinOp op = bin->op;
-
-    if (keeps_left_type && (((op == BinOp::Plus || op == BinOp::Minus) && R_zero) ||
-                            ((op == BinOp::Mul || op == BinOp::Div) && R_one) ||
-                            (op == BinOp::And && R_true) || (op == BinOp::Or && R_false))) {
-        return replace_with(std::move(bin->left));
-    }
-    if (keeps_right_type && ((op == BinOp::Plus && L_zero) || (op == BinOp::Mul && L_one) ||
-                             (op == BinOp::And && L_true) || (op == BinOp::Or && L_false))) {
-        return replace_with(std::move(bin->right));
-    }
-
-    if (op == BinOp::Mul && result_type && result_type->is_integer() &&
-        ((R_zero && optimizer_utils::is_pure(bin->left.get(), m_model)) ||
-         (L_zero && optimizer_utils::is_pure(bin->right.get(), m_model)))) {
-        return replace_with(std::make_unique<IntLiteral>(0, bin->location));
-    }
-    if (op == BinOp::And && (L_false || (R_false && optimizer_utils::is_pure(bin->left.get(), m_model)))) {
-        return replace_with(std::make_unique<BoolLiteral>(false, bin->location));
-    }
-    if (op == BinOp::Or && (L_true || (R_true && optimizer_utils::is_pure(bin->left.get(), m_model)))) {
-        return replace_with(std::make_unique<BoolLiteral>(true, bin->location));
-    }
-    return expr;
-}
-
-void ConstantFolder::optimize_statements(std::vector<std::unique_ptr<AstNode>>& stmts) {
-    for (auto& stmt : stmts) {
-        if (!stmt) continue;
-
-        if (auto* r = dynamic_cast<RoutineDeclaration*>(stmt.get())) {
-            if (r->expression_body) r->expression_body = optimize_expr(std::move(r->expression_body));
-            else optimize_statements(r->body);
-        } else if (auto* v = dynamic_cast<VariableDeclaration*>(stmt.get())) {
-            if (v->expression) v->expression = optimize_expr(std::move(v->expression));
-        } else if (auto* a = dynamic_cast<AssignStatement*>(stmt.get())) {
-            a->target = optimize_expr(std::move(a->target));
-            a->value = optimize_expr(std::move(a->value));
-        } else if (auto* p = dynamic_cast<PrintStatement*>(stmt.get())) {
-            for (auto& item : p->to_print) item = optimize_expr(std::move(item));
-        } else if (auto* c = dynamic_cast<RoutineCallStmt*>(stmt.get())) {
-            for (auto& arg : c->arguments) arg = optimize_expr(std::move(arg));
-        } else if (auto* ret = dynamic_cast<ReturnStatement*>(stmt.get())) {
-            if (ret->expression) ret->expression = optimize_expr(std::move(ret->expression));
-        } else if (auto* ifs = dynamic_cast<IfStatement*>(stmt.get())) {
-            ifs->condition = optimize_expr(std::move(ifs->condition));
-            optimize_statements(ifs->then_body);
-            optimize_statements(ifs->else_body);
-        } else if (auto* whl = dynamic_cast<WhileStatement*>(stmt.get())) {
-            whl->condition = optimize_expr(std::move(whl->condition));
-            optimize_statements(whl->body);
-        } else if (auto* f = dynamic_cast<ForStatement*>(stmt.get())) {
-            if (f->range_start) f->range_start = optimize_expr(std::move(f->range_start));
-            if (f->range_end) f->range_end = optimize_expr(std::move(f->range_end));
-            optimize_statements(f->body);
+    std::unique_ptr<Expression> replacement;
+    if (auto* binary = dynamic_cast<BinaryExpr*>(expr.get())) {
+        const auto* left_boolean = dynamic_cast<const BoolLiteral*>(binary->left.get());
+        const bool skips_right = left_boolean &&
+            ((binary->op == BinOp::And && !left_boolean->value) ||
+             (binary->op == BinOp::Or && left_boolean->value));
+        if (skips_right || (optimizer_utils::is_literal(binary->left.get()) &&
+                            optimizer_utils::is_literal(binary->right.get()))) {
+            const auto value = ConstantEvaluator::evaluate(binary);
+            if (value.has_value()) {
+                replacement = optimizer_utils::make_literal(value, expr->location);
+            }
+        }
+        if (!replacement) replacement = simplify_binary(*binary);
+    } else if (const auto* unary = dynamic_cast<const UnaryExpr*>(expr.get());
+               unary && optimizer_utils::is_literal(unary->child.get())) {
+        const auto value = ConstantEvaluator::evaluate(unary);
+        if (value.has_value()) {
+            replacement = optimizer_utils::make_literal(value, expr->location);
         }
     }
+    if (!replacement) return expr;
+
+    m_changed = true;
+    return optimizer_utils::replace_expr(m_model, std::move(expr), std::move(replacement));
+}
+
+std::unique_ptr<Expression> ConstantFolder::simplify_binary(BinaryExpr& expr) {
+    const auto* left_integer = dynamic_cast<const IntLiteral*>(expr.left.get());
+    const auto* right_integer = dynamic_cast<const IntLiteral*>(expr.right.get());
+    const auto* left_boolean = dynamic_cast<const BoolLiteral*>(expr.left.get());
+    const auto* right_boolean = dynamic_cast<const BoolLiteral*>(expr.right.get());
+    const auto result_type = m_model.type_of(&expr);
+    const bool integer_result = result_type && result_type->is_integer();
+
+    switch (expr.op) {
+        case BinOp::Plus:
+            if (!integer_result) break;
+            if (right_integer && right_integer->value == 0) return std::move(expr.left);
+            if (left_integer && left_integer->value == 0) return std::move(expr.right);
+            break;
+
+        case BinOp::Minus:
+            if (integer_result && right_integer && right_integer->value == 0) {
+                return std::move(expr.left);
+            }
+            break;
+
+        case BinOp::Mul:
+            if (!integer_result) break;
+            if (right_integer && right_integer->value == 1) return std::move(expr.left);
+            if (left_integer && left_integer->value == 1) return std::move(expr.right);
+            if ((right_integer && right_integer->value == 0 &&
+                 optimizer_utils::can_discard_evaluation(expr.left.get(), m_model)) ||
+                (left_integer && left_integer->value == 0 &&
+                 optimizer_utils::can_discard_evaluation(expr.right.get(), m_model))) {
+                return std::make_unique<IntLiteral>(0, expr.location);
+            }
+            break;
+
+        case BinOp::Div:
+            if (integer_result && right_integer && right_integer->value == 1) {
+                return std::move(expr.left);
+            }
+            break;
+
+        case BinOp::And:
+            if (left_boolean && left_boolean->value) return std::move(expr.right);
+            if (right_boolean && right_boolean->value) return std::move(expr.left);
+            if (right_boolean && !right_boolean->value &&
+                optimizer_utils::can_discard_evaluation(expr.left.get(), m_model)) {
+                return std::make_unique<BoolLiteral>(false, expr.location);
+            }
+            break;
+
+        case BinOp::Or:
+            if (left_boolean && !left_boolean->value) return std::move(expr.right);
+            if (right_boolean && !right_boolean->value) return std::move(expr.left);
+            if (right_boolean && right_boolean->value &&
+                optimizer_utils::can_discard_evaluation(expr.left.get(), m_model)) {
+                return std::make_unique<BoolLiteral>(true, expr.location);
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    return nullptr;
+}
+
+void ConstantFolder::optimize_children(AstNode* node) {
+    optimizer_utils::detail::for_each_child(node, [this](auto& child) {
+        using Child = typename std::remove_reference_t<decltype(child)>::element_type;
+        if constexpr (std::is_same_v<Child, Expression>) {
+            child = optimize_expr(std::move(child));
+        } else {
+            optimize_children(child.get());
+        }
+    });
 }
