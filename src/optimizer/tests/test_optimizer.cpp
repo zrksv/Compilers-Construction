@@ -396,13 +396,11 @@ end)");
 }
 
 void test_folding_preserves_potential_traps() {
-    OptTest test(R"(type Fixed is array [2] integer
-routine read(a: array [] integer, n: integer) is
-    var fixed: Fixed is a
-    var indexed is fixed[2] * 0
+    OptTest test(R"(routine read(a: array [] integer, n: integer) is
+    var indexed is a[2] * 0
     var divided is (n / -1) * 0
     var constant is ((-2147483647 - 1) / -1) * 0
-    var skipped is false and (fixed[2] = 0)
+    var skipped is false and (a[2] = 0)
     print 1
 end
 routine main() is
@@ -411,7 +409,7 @@ routine main() is
 end)");
 
     test.optimizer.optimize(test.program);
-    auto* routine = dynamic_cast<RoutineDeclaration*>(test.program->declarations[1].get());
+    auto* routine = dynamic_cast<RoutineDeclaration*>(test.program->declarations[0].get());
     for (const char* name : {"indexed", "divided", "constant"}) {
         auto* variable = body_var(routine, name);
         assert(variable && dynamic_cast<BinaryExpr*>(variable->expression.get()));

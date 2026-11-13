@@ -50,7 +50,7 @@ const RoutineSymbol* CallChecker::check(const AstNode* call,
             continue;
         }
 
-        if (!TypeCompatibility::can_assign(param_type, arg_type)) {
+        if (!TypeCompatibility::can_pass_argument(param_type, arg_type)) {
             Location arg_loc = arguments[i] ? arguments[i]->location : loc;
             m_services.diagnostics.report(arg_loc,
                                           "Argument " + std::to_string(i + 1) + " expects type " +

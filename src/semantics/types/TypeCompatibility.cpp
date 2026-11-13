@@ -22,7 +22,19 @@ bool TypeCompatibility::can_assign(const TypeRef& target, const TypeRef& source)
         return s->is_boolean() || s->is_integer();
     }
 
-    return t->equals(*s);
+    return false;
+}
+
+bool TypeCompatibility::can_pass_argument(const TypeRef& parameter, const TypeRef& argument) {
+    if (can_assign(parameter, argument)) return true;
+    if (!parameter || !argument || !parameter->is_array() || !argument->is_array()) {
+        return false;
+    }
+
+    auto target = std::static_pointer_cast<ArrayType>(parameter->unalias());
+    auto source = std::static_pointer_cast<ArrayType>(argument->unalias());
+    return target->is_unsized() && target->element_type && source->element_type &&
+           target->element_type->equals(*source->element_type);
 }
 
 ConversionKind TypeCompatibility::conversion(const TypeRef& target, const TypeRef& source) {

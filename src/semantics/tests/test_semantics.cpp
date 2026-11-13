@@ -102,10 +102,12 @@ void test_arrays_and_nominal_equivalence() {
 
     auto unsized_int = std::make_shared<ArrayType>(t_int, std::nullopt, 0);
     assert(unsized_int->is_unsized());
-    assert(unsized_int->equals(*arr1));
+    assert(!unsized_int->equals(*arr1));
+    assert(!arr1->equals(*unsized_int));
+    assert(unsized_int->equals(*std::make_shared<ArrayType>(t_int)));
 
     auto unsized_real = std::make_shared<ArrayType>(t_real, std::nullopt, 0);
-    assert(!unsized_real->equals(*arr1));
+    assert(!unsized_real->equals(*unsized_int));
 
     std::cout << "[PASS] test_arrays_and_nominal_equivalence\n";
 }
@@ -332,7 +334,10 @@ void test_assignment_matrix() {
 
     auto fixed_arr = std::make_shared<ArrayType>(t_int, 5, 10);
     auto unsized_arr = std::make_shared<ArrayType>(t_int, std::nullopt, 0);
-    assert(TypeCompatibility::can_assign(unsized_arr, fixed_arr));
+    assert(!TypeCompatibility::can_assign(unsized_arr, fixed_arr));
+    assert(!TypeCompatibility::can_assign(fixed_arr, unsized_arr));
+    assert(TypeCompatibility::can_pass_argument(unsized_arr, fixed_arr));
+    assert(!TypeCompatibility::can_pass_argument(fixed_arr, unsized_arr));
     assert(TypeCompatibility::conversion(unsized_arr, fixed_arr) == ConversionKind::None);
 
     std::cout << "[PASS] test_assignment_matrix\n";
@@ -735,6 +740,8 @@ void expect_error_at(const std::string& code, size_t row) {
 
 void test_unsized_parameter_accepts_any_array() {
     expect_valid(R"(type five is array [5] integer
+routine total(a : array [] integer) : integer
+routine relay(a : array [] integer) : integer => total(a)
 routine total(a : array [] integer) : integer is
     return a.size
 end
@@ -742,7 +749,7 @@ routine main() is
     var x : array [3] integer
     var y : five
     print total(x)
-    print total(y)
+    print relay(y)
 end)");
 
     expect_error_at(R"(routine total(a : array [] integer) : integer is
@@ -754,6 +761,32 @@ routine main() is
 end)", 6);
 
     std::cout << "[PASS] test_unsized_parameter_accepts_any_array\n";
+}
+
+void test_unsized_array_does_not_match_fixed_type() {
+    expect_error_at(R"(type A is array [2] integer
+routine f(a: array [] integer) is
+    var x: A is a
+end)", 3);
+
+    expect_error_at(R"(type A is array [2] integer
+routine fixed(a: A) is end
+routine f(a: array [] integer) is
+    fixed(a)
+end)", 4);
+
+    expect_error_at(R"(type A is array [2] integer
+routine f(a: array [] integer): A is
+    return a
+end)", 3);
+
+    expect_error_at(R"(type A is array [2] integer
+routine f(a: array [] integer)
+routine f(a: A) is end)", 3);
+
+    expect_error_at(R"(type A is array [2] integer
+routine f(a: A)
+routine f(a: array [] integer) is end)", 3);
 }
 
 void test_explicit_type_initializer_from_source() {
@@ -1402,6 +1435,7 @@ int main() {
     test_unsized_array_only_in_parameters();
     test_secondary_error_suppression();
     test_unsized_parameter_accepts_any_array();
+    test_unsized_array_does_not_match_fixed_type();
     test_explicit_type_initializer_from_source();
     test_unsized_array_positions_from_source();
     test_aggregates_are_not_comparable();

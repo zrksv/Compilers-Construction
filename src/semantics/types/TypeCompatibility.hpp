@@ -13,6 +13,7 @@ enum class ConversionKind {
 class TypeCompatibility {
 public:
     static bool can_assign(const TypeRef& target, const TypeRef& source);
+    static bool can_pass_argument(const TypeRef& parameter, const TypeRef& argument);
     static ConversionKind conversion(const TypeRef& target, const TypeRef& source);
     static bool is_aggregate(const TypeRef& type);
 };
