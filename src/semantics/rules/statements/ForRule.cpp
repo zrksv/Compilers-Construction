@@ -23,7 +23,11 @@ StmtResult ForRule::analyze(ForStatement& node, const Context& ctx) {
 
     Context loop_ctx = ctx.with_child_scope();
     if (loop_ctx.scope) {
-        loop_ctx.scope->declare_variable(VariableSymbol(node.iterator_name, iterator_type, true, node.location));
+        VariableSymbol iterator(node.iterator_name, iterator_type, true, node.location);
+        if (loop_ctx.scope->declare_variable(iterator)) {
+            const auto* symbol = loop_ctx.scope->lookup_variable(node.iterator_name, false);
+            m_services.model.bind_variable(&node, symbol);
+        }
     }
 
     m_dispatcher.statement_list(node.body, loop_ctx);
