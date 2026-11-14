@@ -12,7 +12,7 @@ TypeRef ArrayTypeRule::resolve(ArrayTypeNode& node, const Context& ctx) {
         return m_services.types.make_array(elem_type, std::nullopt);
     }
 
-    // Array with size expression (must be an integer constant > 0)
+    // A fixed array size must be a positive integer literal.
     if (auto* int_lit = dynamic_cast<IntLiteral*>(node.size.get())) {
         if (int_lit->value <= 0) {
             error(node.size->location, "Array size must be greater than zero");
@@ -21,6 +21,6 @@ TypeRef ArrayTypeRule::resolve(ArrayTypeNode& node, const Context& ctx) {
         return m_services.types.make_array(elem_type, static_cast<size_t>(int_lit->value));
     }
 
-    error(node.size->location, "Array size must be a compile-time integer constant");
+    error(node.size->location, "Array size must be an integer literal");
     return PrimitiveType::get_error();
 }

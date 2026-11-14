@@ -11,8 +11,8 @@ public:
     bool run(Program* program);
 
 private:
-    void eliminate_in_statements(std::vector<std::unique_ptr<AstNode>>& stmts);
-    void drop_rest(const std::vector<std::unique_ptr<AstNode>>& stmts, size_t from);
+    bool eliminate_in_statements(std::vector<std::unique_ptr<AstNode>>& statements);
+    bool eliminate_in_statement(AstNode* statement);
     SemanticModel& m_model;
     bool m_changed = false;
 };

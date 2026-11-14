@@ -11,14 +11,14 @@ TypeRef SemanticModel::type_of(const Expression* expr) const {
     return it != m_expr_types.end() ? it->second : nullptr;
 }
 
-void SemanticModel::bind_variable(const Identifier* id, const VariableSymbol* var) {
-    if (id) {
-        m_var_bindings[id] = var;
+void SemanticModel::bind_variable(const AstNode* node, const VariableSymbol* var) {
+    if (node) {
+        m_var_bindings[node] = var;
     }
 }
 
-const VariableSymbol* SemanticModel::variable_of(const Identifier* id) const {
-    auto it = m_var_bindings.find(id);
+const VariableSymbol* SemanticModel::variable_of(const AstNode* node) const {
+    auto it = m_var_bindings.find(node);
     return it != m_var_bindings.end() ? it->second : nullptr;
 }
 
@@ -49,11 +49,9 @@ void SemanticModel::forget(const AstNode* node) {
         return;
     }
     m_routine_bindings.erase(node);
+    m_var_bindings.erase(node);
     if (const auto* expr = dynamic_cast<const Expression*>(node)) {
         m_expr_types.erase(expr);
         m_conversions.erase(expr);
-    }
-    if (const auto* id = dynamic_cast<const Identifier*>(node)) {
-        m_var_bindings.erase(id);
     }
 }

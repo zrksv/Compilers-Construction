@@ -101,20 +101,15 @@ bool ArrayType::equals(const Type& other) const {
     }
     auto other_arr = std::static_pointer_cast<ArrayType>(other_u);
 
-    // If either array is unsized (or has type_id == 0), they match if elements match
-    if (is_unsized() || other_arr->is_unsized() || type_id == 0 || other_arr->type_id == 0) {
+    if (is_unsized() != other_arr->is_unsized()) {
+        return false;
+    }
+    if (is_unsized()) {
         return element_type && other_arr->element_type &&
                element_type->equals(*other_arr->element_type);
     }
 
-    // Nominal equality if both have explicit non-zero IDs
-    if (type_id != 0 && other_arr->type_id != 0) {
-        return type_id == other_arr->type_id;
-    }
-
-    return size == other_arr->size &&
-           element_type && other_arr->element_type &&
-           element_type->equals(*other_arr->element_type);
+    return this == other_arr.get() || (type_id != 0 && type_id == other_arr->type_id);
 }
 
 // ============================================================================

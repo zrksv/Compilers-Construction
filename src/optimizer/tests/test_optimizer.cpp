@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cassert>
+#include <cmath>
 #include <sstream>
 #include <string>
 #include "SourceManager.hpp"
@@ -331,7 +332,7 @@ void test_unused_variables_keep_failing_initializers() {
     var i is 5
     var n is 2
     var t is a[i]
-    var safe is a[2]
+    var constant_index is a[2]
     var q is 7 / (i - 5)
     var b : boolean is n
     var h is a[i] * 0
@@ -343,9 +344,269 @@ end)");
     auto* routine = dynamic_cast<RoutineDeclaration*>(test.program->declarations[0].get());
     assert(body_var(routine, "t") && body_var(routine, "q") && body_var(routine, "b"));
     assert(dynamic_cast<BinaryExpr*>(body_var(routine, "h")->expression.get()));
-    assert(!body_var(routine, "safe") && !body_var(routine, "g"));
+    assert(body_var(routine, "constant_index") && !body_var(routine, "g"));
 
     std::cout << "[PASS] test_unused_variables_keep_failing_initializers\n";
+}
+
+void test_i32_wraps_between_operations() {
+    OptTest test(R"(routine main() is
+    print (2147483647 + 1) < 0, (2147483647 + 1) / 2
+    print ((-2147483647 - 1) - 1) > 0, -(2147483647 + 1)
+    print (65536 * 65536) + 1, (-2147483647 - 1) % -1
+end)");
+
+    test.optimizer.fold_constants(test.program);
+    auto* routine = dynamic_cast<RoutineDeclaration*>(test.program->declarations[0].get());
+    auto* first = dynamic_cast<PrintStatement*>(routine->body[0].get());
+    auto* second = dynamic_cast<PrintStatement*>(routine->body[1].get());
+    auto* third = dynamic_cast<PrintStatement*>(routine->body[2].get());
+    assert(first && second && third);
+
+    auto* comparison = dynamic_cast<BoolLiteral*>(first->to_print[0].get());
+    auto* quotient = dynamic_cast<IntLiteral*>(first->to_print[1].get());
+    auto* subtraction = dynamic_cast<BoolLiteral*>(second->to_print[0].get());
+    auto* negation = dynamic_cast<IntLiteral*>(second->to_print[1].get());
+    auto* product = dynamic_cast<IntLiteral*>(third->to_print[0].get());
+    auto* remainder = dynamic_cast<IntLiteral*>(third->to_print[1].get());
+    assert(comparison && comparison->value);
+    assert(quotient && quotient->value == -1073741824);
+    assert(subtraction && subtraction->value);
+    assert(negation && negation->value == -2147483647 - 1);
+    assert(product && product->value == 1);
+    assert(remainder && remainder->value == 0);
+}
+
+void test_real_folding_preserves_signed_zero() {
+    OptTest test(R"(routine main() is
+    var r is -0.0
+    var sum is r + 0.0
+    var folded_sum is -0.0 + 0.0
+    print 1.0 / sum, folded_sum
+end)");
+
+    test.optimizer.fold_constants(test.program);
+    auto* routine = dynamic_cast<RoutineDeclaration*>(test.program->declarations[0].get());
+    auto* initial = dynamic_cast<RealLiteral*>(body_var(routine, "r")->expression.get());
+    auto* sum = dynamic_cast<BinaryExpr*>(body_var(routine, "sum")->expression.get());
+    auto* folded = dynamic_cast<RealLiteral*>(body_var(routine, "folded_sum")->expression.get());
+    assert(initial && initial->value == 0.0 && std::signbit(initial->value));
+    assert(sum && sum->op == BinOp::Plus);
+    assert(folded && folded->value == 0.0 && !std::signbit(folded->value));
+}
+
+void test_folding_preserves_potential_traps() {
+    OptTest test(R"(routine read(a: array [] integer, n: integer) is
+    var indexed is a[2] * 0
+    var divided is (n / -1) * 0
+    var constant is ((-2147483647 - 1) / -1) * 0
+    var skipped is false and (a[2] = 0)
+    print 1
+end
+routine main() is
+    var a: array [1] integer
+    read(a, -2147483647 - 1)
+end)");
+
+    test.optimizer.optimize(test.program);
+    auto* routine = dynamic_cast<RoutineDeclaration*>(test.program->declarations[0].get());
+    for (const char* name : {"indexed", "divided", "constant"}) {
+        auto* variable = body_var(routine, name);
+        assert(variable && dynamic_cast<BinaryExpr*>(variable->expression.get()));
+    }
+    assert(!body_var(routine, "skipped"));
+}
+
+void test_unused_chain_and_shadowing() {
+    std::string source = "routine main(flag: boolean) is\n"
+                         "var v0 is 0\n"
+                         "var x is 10\n"
+                         "var y is 20\n";
+    for (int i = 1; i <= 12; ++i) {
+        source += "var v" + std::to_string(i) + " is v" + std::to_string(i - 1) + "\n";
+    }
+    source += R"(if flag then
+        var x is 1
+        var y is y + 1
+        print x, y
+    end
+end)";
+    OptTest test(source);
+    assert(test.optimizer.remove_unused_variables(test.program));
+    auto* routine = dynamic_cast<RoutineDeclaration*>(test.program->declarations[0].get());
+    assert(routine && routine->body.size() == 2 && body_var(routine, "y"));
+    auto* branch = dynamic_cast<IfStatement*>(routine->body.back().get());
+    assert(branch && branch->then_body.size() == 3);
+    assert(!test.optimizer.remove_unused_variables(test.program));
+}
+
+void test_unused_aggregates_keep_allocations() {
+    OptTest test(R"(type Flag is boolean
+type Entry is record var value: integer end
+routine main() is
+    var huge: array [2147483647] integer
+    var anonymous: record var value: integer end
+    var named: Entry
+    var flag: Flag
+    print 1
+end)");
+
+    assert(test.optimizer.optimize(test.program));
+    auto* routine = dynamic_cast<RoutineDeclaration*>(test.program->declarations[2].get());
+    assert(routine && routine->body.size() == 4);
+    assert(body_var(routine, "huge"));
+    assert(body_var(routine, "anonymous"));
+    assert(body_var(routine, "named"));
+    assert(!body_var(routine, "flag"));
+}
+
+void test_constant_runtime_errors_survive_optimization() {
+    OptTest test(R"(routine check(b: boolean) is end
+routine main(n: integer) is
+    var a: array [1] integer
+    var b: boolean is n * 0 + 2
+    var quotient is 1 / (n * 0)
+    var remainder is 1 % (n * 0)
+    var indexed is a[n * 0]
+    check(n * 0 + 2)
+    print 1.0 / 0.0, 0.0 / 0.0, false and (1 / 0 = 0)
+end)");
+
+    assert(test.optimizer.optimize(test.program));
+    auto* routine = dynamic_cast<RoutineDeclaration*>(test.program->declarations[1].get());
+    assert(routine);
+    const auto& model = test.analyzer.get_model();
+    auto* boolean = dynamic_cast<IntLiteral*>(body_var(routine, "b")->expression.get());
+    assert(boolean && boolean->value == 2);
+    assert(model.conversion_of(boolean) == ConversionKind::IntegerToBoolean);
+    for (const char* name : {"quotient", "remainder"}) {
+        auto* division = dynamic_cast<BinaryExpr*>(body_var(routine, name)->expression.get());
+        assert(division);
+        auto* divisor = dynamic_cast<IntLiteral*>(division->right.get());
+        assert(divisor && divisor->value == 0);
+    }
+    auto* access = dynamic_cast<ElementAccessExpr*>(body_var(routine, "indexed")->expression.get());
+    assert(access);
+    auto* index = dynamic_cast<IntLiteral*>(access->index.get());
+    assert(index && index->value == 0);
+
+    auto* call = dynamic_cast<RoutineCallStmt*>(routine->body[5].get());
+    assert(call && model.conversion_of(call->arguments.front().get()) == ConversionKind::IntegerToBoolean);
+    auto* output = dynamic_cast<PrintStatement*>(routine->body.back().get());
+    assert(output && output->to_print.size() == 3);
+    auto* infinity = dynamic_cast<RealLiteral*>(output->to_print[0].get());
+    auto* nan = dynamic_cast<RealLiteral*>(output->to_print[1].get());
+    auto* skipped = dynamic_cast<BoolLiteral*>(output->to_print[2].get());
+    assert(infinity && std::isinf(infinity->value) && infinity->value > 0);
+    assert(nan && std::isnan(nan->value));
+    assert(skipped && !skipped->value);
+
+    SemanticAnalyzer reanalyzer;
+    assert(reanalyzer.analyze(test.program));
+    assert(!test.optimizer.optimize(test.program));
+}
+
+void test_record_field_initializers() {
+    OptTest test(R"(routine side(): integer is
+    print 42
+    return 7
+end
+type Named is record
+    var converted: real is 2 + 3
+    var nested: array [2] record
+        var value is 6 * 7
+        var effect is side() * 0
+        var skipped is false and (side() = 7)
+    end
+end
+routine take(x: record var value is 8 + 1 end) is end
+routine make(): record var value is 3 * 4 end => make()
+routine main() is
+    var unused: Named
+    var local: record var value is 1 / 0 end
+end
+)");
+
+    assert(test.optimizer.optimize(test.program));
+    const auto& declarations = test.program->declarations;
+    const auto& model = test.analyzer.get_model();
+    const auto* named = dynamic_cast<const TypeDeclaration*>(declarations[1].get());
+    const auto* record = dynamic_cast<const RecordTypeNode*>(named->type.get());
+    const auto* converted = dynamic_cast<const IntLiteral*>(record->declarations[0]->expression.get());
+    assert(converted && converted->value == 5);
+    assert(model.type_of(converted)->is_integer());
+    assert(model.conversion_of(converted) == ConversionKind::IntegerToReal);
+
+    const auto* array = dynamic_cast<const ArrayTypeNode*>(record->declarations[1]->type.get());
+    const auto* nested = dynamic_cast<const RecordTypeNode*>(array->element_type.get());
+    const auto* value = dynamic_cast<const IntLiteral*>(nested->declarations[0]->expression.get());
+    const auto* effect = dynamic_cast<const BinaryExpr*>(nested->declarations[1]->expression.get());
+    const auto* skipped = dynamic_cast<const BoolLiteral*>(nested->declarations[2]->expression.get());
+    assert(value && value->value == 42);
+    assert(effect && effect->op == BinOp::Mul);
+    const auto* call = dynamic_cast<const RoutineCallExpr*>(effect->left.get());
+    assert(call && model.routine_of(call) && model.routine_of(call)->name == "side");
+    assert(skipped && !skipped->value);
+
+    const auto* take = dynamic_cast<const RoutineDeclaration*>(declarations[2].get());
+    const auto* parameter = dynamic_cast<const RecordTypeNode*>(take->parameters[0]->type.get());
+    const auto* parameter_value = dynamic_cast<const IntLiteral*>(parameter->declarations[0]->expression.get());
+    assert(parameter_value && parameter_value->value == 9);
+
+    const auto* make = dynamic_cast<const RoutineDeclaration*>(declarations[3].get());
+    const auto* result = dynamic_cast<const RecordTypeNode*>(make->return_type.get());
+    const auto* result_value = dynamic_cast<const IntLiteral*>(result->declarations[0]->expression.get());
+    assert(result_value && result_value->value == 12);
+
+    auto* main = dynamic_cast<RoutineDeclaration*>(declarations[4].get());
+    assert(main && body_var(main, "unused"));
+    const auto* local = dynamic_cast<const RecordTypeNode*>(body_var(main, "local")->type.get());
+    const auto* trap = dynamic_cast<const BinaryExpr*>(local->declarations[0]->expression.get());
+    assert(trap && trap->op == BinOp::Div);
+
+    SemanticAnalyzer reanalyzer;
+    assert(reanalyzer.analyze(test.program));
+    assert(!test.optimizer.optimize(test.program));
+}
+
+void test_integer_conditions_and_scoped_returns() {
+    OptTest test(R"(routine choose(): integer is
+    if 0 then
+        return 1
+    else
+        var x is 2
+        return x
+    end
+    print 999
+end
+routine main() is
+    while 0 loop
+        print 999
+    end
+    if 0 then
+        print 999
+    else
+        var x is choose()
+        print x
+    end
+end)");
+
+    assert(test.optimizer.optimize(test.program));
+    auto* choose = dynamic_cast<RoutineDeclaration*>(test.program->declarations[0].get());
+    assert(choose && choose->body.size() == 1);
+    auto* main = dynamic_cast<RoutineDeclaration*>(test.program->declarations[1].get());
+    assert(main && main->body.size() == 1);
+    auto* branch = dynamic_cast<IfStatement*>(main->body.front().get());
+    assert(branch && branch->else_body.empty() && branch->then_body.size() == 2);
+    const auto* condition = dynamic_cast<BoolLiteral*>(branch->condition.get());
+    assert(condition && condition->value);
+    const auto& model = test.analyzer.get_model();
+    assert(model.type_of(condition)->is_boolean());
+    assert(model.conversion_of(condition) == ConversionKind::None);
+
+    SemanticAnalyzer reanalyzer;
+    assert(reanalyzer.analyze(test.program));
+    assert(!test.optimizer.optimize(test.program));
 }
 
 int main() {
@@ -361,6 +622,14 @@ int main() {
     test_branch_pruning_keeps_scopes();
     test_unused_variables_keep_type_dependencies();
     test_unused_variables_keep_failing_initializers();
+    test_i32_wraps_between_operations();
+    test_real_folding_preserves_signed_zero();
+    test_folding_preserves_potential_traps();
+    test_unused_chain_and_shadowing();
+    test_unused_aggregates_keep_allocations();
+    test_constant_runtime_errors_survive_optimization();
+    test_record_field_initializers();
+    test_integer_conditions_and_scoped_returns();
     std::cout << "All AST optimizer tests passed successfully!\n";
     return 0;
 }

@@ -50,7 +50,7 @@ VariableSymbol* Scope::lookup_variable(const std::string& name, bool check_paren
         return &it->second;
     }
 
-    if (check_parents && m_parent) {
+    if (check_parents && m_parent && !is_declared_locally(name)) {
         return m_parent->lookup_variable(name, true);
     }
     return nullptr;
@@ -62,7 +62,7 @@ TypeSymbol* Scope::lookup_type(const std::string& name, bool check_parents) {
         return &it->second;
     }
 
-    if (check_parents && m_parent) {
+    if (check_parents && m_parent && !is_declared_locally(name)) {
         return m_parent->lookup_type(name, true);
     }
     return nullptr;
@@ -74,7 +74,7 @@ RoutineSymbol* Scope::lookup_routine(const std::string& name, bool check_parents
         return &it->second;
     }
 
-    if (check_parents && m_parent) {
+    if (check_parents && m_parent && !is_declared_locally(name)) {
         return m_parent->lookup_routine(name, true);
     }
     return nullptr;

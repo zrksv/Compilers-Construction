@@ -1,16 +1,9 @@
-routine demo() : integer is
-    var dead_var is 123
-    var a is 5 + 3
-    var b is 3 < 5
-    var x is 7
-    var f is x + 0
-    var h is x * 0
+routine foo() : integer is
+    print 1;
+    return 1
+end
 
-    if 10 > 2 then
-        print a, b, f, h
-        return 42
-        print 999
-    else
-        return 0
-    end
+routine demo() : integer is
+    var dead_var is foo()
+    return 1
 end

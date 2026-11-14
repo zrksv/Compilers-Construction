@@ -1,51 +1,61 @@
 #include "UnusedVariables.hpp"
 #include "OptimizerUtils.hpp"
+#include <algorithm>
 
 bool UnusedVariableEliminator::run(Program* program) {
     if (!program) return false;
+
     m_changed = false;
-    eliminate_in_statements(program->declarations, false);
+    for (auto& declaration : program->declarations) {
+        if (auto* routine = dynamic_cast<RoutineDeclaration*>(declaration.get())) {
+            m_used.clear();
+            eliminate_in_statements(routine->body);
+        }
+    }
     return m_changed;
 }
 
-void UnusedVariableEliminator::eliminate_in_statements(std::vector<std::unique_ptr<AstNode>>& stmts, bool in_routine) {
-    std::vector<std::unique_ptr<AstNode>> result;
-
-    for (size_t i = 0; i < stmts.size(); ++i) {
-        auto& stmt = stmts[i];
-        if (!stmt) continue;
-
-        if (auto* var = dynamic_cast<VariableDeclaration*>(stmt.get())) {
-            if (in_routine && optimizer_utils::creation_is_pure(var->type.get(), m_model) &&
-                optimizer_utils::is_pure(var->expression.get(), m_model)) {
-                bool used = false;
-                for (size_t j = i + 1; j < stmts.size(); ++j) {
-                    if (optimizer_utils::contains_identifier(stmts[j].get(), var->name)) {
-                        used = true;
-                        break;
-                    }
-                }
-                if (!used) {
-                    m_changed = true;
-                    optimizer_utils::forget_subtree(m_model, var);
-                    continue;
-                }
+void UnusedVariableEliminator::eliminate_in_statements(
+    std::vector<std::unique_ptr<AstNode>>& statements) {
+    for (auto it = statements.rbegin(); it != statements.rend(); ++it) {
+        auto& statement = *it;
+        if (auto* variable = dynamic_cast<VariableDeclaration*>(statement.get())) {
+            const auto* symbol = m_model.variable_of(variable);
+            // Creating an aggregate can fail when linear memory is exhausted.
+            if (symbol && symbol->type && !TypeCompatibility::is_aggregate(symbol->type) &&
+                !m_used.contains(symbol) &&
+                optimizer_utils::can_discard_evaluation(variable->expression.get(), m_model)) {
+                optimizer_utils::forget_subtree(m_model, variable);
+                statement.reset();
+                m_changed = true;
+                continue;
             }
         }
 
-        if (auto* r = dynamic_cast<RoutineDeclaration*>(stmt.get())) {
-            eliminate_in_statements(r->body, true);
-        } else if (auto* ifs = dynamic_cast<IfStatement*>(stmt.get())) {
-            eliminate_in_statements(ifs->then_body, in_routine);
-            eliminate_in_statements(ifs->else_body, in_routine);
-        } else if (auto* whl = dynamic_cast<WhileStatement*>(stmt.get())) {
-            eliminate_in_statements(whl->body, in_routine);
-        } else if (auto* f = dynamic_cast<ForStatement*>(stmt.get())) {
-            eliminate_in_statements(f->body, in_routine);
+        if (auto* branch = dynamic_cast<IfStatement*>(statement.get())) {
+            eliminate_in_statements(branch->then_body);
+            eliminate_in_statements(branch->else_body);
+            collect_uses(branch->condition.get());
+        } else if (auto* loop = dynamic_cast<WhileStatement*>(statement.get())) {
+            eliminate_in_statements(loop->body);
+            collect_uses(loop->condition.get());
+        } else if (auto* loop = dynamic_cast<ForStatement*>(statement.get())) {
+            eliminate_in_statements(loop->body);
+            collect_uses(loop->range_start.get());
+            collect_uses(loop->range_end.get());
+        } else {
+            collect_uses(statement.get());
         }
-
-        result.push_back(std::move(stmt));
     }
 
-    stmts = std::move(result);
+    std::erase_if(statements, [](const auto& statement) { return !statement; });
+}
+
+void UnusedVariableEliminator::collect_uses(const AstNode* node) {
+    if (const auto* identifier = dynamic_cast<const Identifier*>(node)) {
+        if (const auto* symbol = m_model.variable_of(identifier)) {
+            m_used.insert(symbol);
+        }
+    }
+    optimizer_utils::for_each_child(node, [this](const AstNode* child) { collect_uses(child); });
 }

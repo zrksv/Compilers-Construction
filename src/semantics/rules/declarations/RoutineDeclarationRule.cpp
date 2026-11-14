@@ -1,5 +1,6 @@
 #include "rules/declarations/RoutineDeclarationRule.hpp"
 #include <unordered_set>
+#include <utility>
 
 RoutineSymbol* RoutineDeclarationRule::declare_header(RoutineDeclaration& node, const Context& ctx) {
     if (!ctx.scope || !ctx.scope->is_global()) {
@@ -64,6 +65,8 @@ RoutineSymbol* RoutineDeclarationRule::declare_header(RoutineDeclaration& node, 
             return nullptr;
         }
 
+        // Keep the symbol used by earlier calls and take parameter names from the definition.
+        existing->parameters = std::move(parameters);
         existing->is_defined = true;
         return existing;
     }

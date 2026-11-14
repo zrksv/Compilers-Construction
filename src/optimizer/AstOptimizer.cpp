@@ -7,16 +7,15 @@
 bool AstOptimizer::optimize(Program* program) {
     if (!program) return false;
     bool any_changed = false;
-    for (int iter = 0; iter < 10; ++iter) {
+    for (;;) {
         bool changed = false;
         changed |= fold_constants(program);
         changed |= prune_branches(program);
         changed |= eliminate_dead_code(program);
         changed |= remove_unused_variables(program);
-        if (changed) any_changed = true;
-        else break;
+        if (!changed) return any_changed;
+        any_changed = true;
     }
-    return any_changed;
 }
 
 bool AstOptimizer::fold_constants(Program* program) {

@@ -190,6 +190,7 @@ int main() {
     run_pipeline_test("19_record_return.imp", true);
     run_pipeline_test("20_array_of_array.imp", true);
     run_pipeline_test("28_optimization_demo.imp", true);
+    run_pipeline_test("29_semantic_checks.imp", true);
 
     std::cout << "\n=== Running Pipeline Semantic Error Tests ===\n";
 
@@ -197,7 +198,6 @@ int main() {
     run_pipeline_semantic_error_test("25_semantic_types.imp", {16, 19, 20});
     run_pipeline_semantic_error_test("26_semantic_routines.imp", {6, 9, 16, 18});
     run_pipeline_semantic_error_test("27_semantic_scopes_readonly.imp", {14, 16, 18, 19});
-    run_pipeline_semantic_error_test("29_semantic_checks.imp", {3, 4, 5});
 
     std::cout << "\n=== Running Pipeline Error Tests (Parser Recovery) ===\n";
 

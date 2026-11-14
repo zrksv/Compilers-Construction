@@ -102,10 +102,12 @@ void test_arrays_and_nominal_equivalence() {
 
     auto unsized_int = std::make_shared<ArrayType>(t_int, std::nullopt, 0);
     assert(unsized_int->is_unsized());
-    assert(unsized_int->equals(*arr1));
+    assert(!unsized_int->equals(*arr1));
+    assert(!arr1->equals(*unsized_int));
+    assert(unsized_int->equals(*std::make_shared<ArrayType>(t_int)));
 
     auto unsized_real = std::make_shared<ArrayType>(t_real, std::nullopt, 0);
-    assert(!unsized_real->equals(*arr1));
+    assert(!unsized_real->equals(*unsized_int));
 
     std::cout << "[PASS] test_arrays_and_nominal_equivalence\n";
 }
@@ -332,7 +334,10 @@ void test_assignment_matrix() {
 
     auto fixed_arr = std::make_shared<ArrayType>(t_int, 5, 10);
     auto unsized_arr = std::make_shared<ArrayType>(t_int, std::nullopt, 0);
-    assert(TypeCompatibility::can_assign(unsized_arr, fixed_arr));
+    assert(!TypeCompatibility::can_assign(unsized_arr, fixed_arr));
+    assert(!TypeCompatibility::can_assign(fixed_arr, unsized_arr));
+    assert(TypeCompatibility::can_pass_argument(unsized_arr, fixed_arr));
+    assert(!TypeCompatibility::can_pass_argument(fixed_arr, unsized_arr));
     assert(TypeCompatibility::conversion(unsized_arr, fixed_arr) == ConversionKind::None);
 
     std::cout << "[PASS] test_assignment_matrix\n";
@@ -733,8 +738,47 @@ void expect_error_at(const std::string& code, size_t row) {
     assert(!run.ok && found);
 }
 
+void test_forward_definition_parameter_names() {
+    Run run(R"(routine f(x: integer): integer
+routine before(): integer => f(7)
+routine f(y: integer): integer => y
+routine after(): integer => f(8))");
+    assert(run.ok && run.errors().empty());
+
+    const auto& declarations = run.program().declarations;
+    const auto* before = dynamic_cast<const RoutineDeclaration*>(declarations[1].get());
+    const auto* definition = dynamic_cast<const RoutineDeclaration*>(declarations[2].get());
+    const auto* after = dynamic_cast<const RoutineDeclaration*>(declarations[3].get());
+    const auto& model = run.analyzer.get_model();
+    const auto* symbol = run.analyzer.get_global_scope().lookup_routine("f");
+    assert(before && definition && after && symbol && symbol->is_defined);
+    assert(model.routine_of(before->expression_body.get()) == symbol);
+    assert(model.routine_of(after->expression_body.get()) == symbol);
+
+    const auto* parameter = model.variable_of(definition->expression_body.get());
+    assert(parameter && parameter->name == "y");
+    assert(parameter->location.row == 3);
+
+    expect_error_at(R"(routine f(x: integer): integer
+routine f(y: integer): integer => x)", 2);
+
+    expect_valid(R"(routine f(x: integer): integer
+routine f(y: integer): integer is
+    var x is y
+    return x
+end)");
+
+    expect_error_at(R"(routine f(x: integer): integer
+routine f(y: integer): integer is
+    var y is 1
+    return y
+end)", 3);
+}
+
 void test_unsized_parameter_accepts_any_array() {
     expect_valid(R"(type five is array [5] integer
+routine total(a : array [] integer) : integer
+routine relay(a : array [] integer) : integer => total(a)
 routine total(a : array [] integer) : integer is
     return a.size
 end
@@ -742,7 +786,7 @@ routine main() is
     var x : array [3] integer
     var y : five
     print total(x)
-    print total(y)
+    print relay(y)
 end)");
 
     expect_error_at(R"(routine total(a : array [] integer) : integer is
@@ -754,6 +798,32 @@ routine main() is
 end)", 6);
 
     std::cout << "[PASS] test_unsized_parameter_accepts_any_array\n";
+}
+
+void test_unsized_array_does_not_match_fixed_type() {
+    expect_error_at(R"(type A is array [2] integer
+routine f(a: array [] integer) is
+    var x: A is a
+end)", 3);
+
+    expect_error_at(R"(type A is array [2] integer
+routine fixed(a: A) is end
+routine f(a: array [] integer) is
+    fixed(a)
+end)", 4);
+
+    expect_error_at(R"(type A is array [2] integer
+routine f(a: array [] integer): A is
+    return a
+end)", 3);
+
+    expect_error_at(R"(type A is array [2] integer
+routine f(a: array [] integer)
+routine f(a: A) is end)", 3);
+
+    expect_error_at(R"(type A is array [2] integer
+routine f(a: A)
+routine f(a: array [] integer) is end)", 3);
 }
 
 void test_explicit_type_initializer_from_source() {
@@ -779,6 +849,16 @@ end)", 1);
 end)", 2);
 
     std::cout << "[PASS] test_unsized_array_positions_from_source\n";
+}
+
+void test_fixed_array_size_requires_positive_integer_literal() {
+    expect_valid("type A is array [3] integer");
+    expect_error_at("type A is array [1 + 2] integer", 1);
+    expect_error_at("type A is array [1 - 1] integer", 1);
+    expect_error_at("type A is array [3.0] integer", 1);
+    expect_error_at("type A is array [0] integer", 1);
+    expect_error_at(R"(var n is 3
+type A is array [n] integer)", 2);
 }
 
 void test_aggregates_are_not_comparable() {
@@ -1221,6 +1301,42 @@ var x : real)", 2);
     std::cout << "[PASS] test_unified_namespace\n";
 }
 
+void test_shadowing_across_name_categories() {
+    expect_error_at(R"(routine f() is end
+routine main() is
+    var f is 1
+    if true then
+        f()
+    end
+end)", 5);
+
+    expect_error_at(R"(type T is integer
+routine main() is
+    var T is 1
+    var x: T
+end)", 4);
+
+    expect_error_at(R"(var x is 1
+routine main() is
+    type x is integer
+    print x
+end)", 4);
+
+    expect_valid(R"(var x is 1
+routine f() is end
+routine main() is
+    var x is x + 1
+    f()
+    if true then
+        var f is 2
+        print f
+    end
+    f()
+end)");
+
+    std::cout << "[PASS] test_shadowing_across_name_categories\n";
+}
+
 void test_diagnostics_order_and_format() {
     Run run(R"(routine main() is
     print undefined_a
@@ -1258,25 +1374,25 @@ void test_array_bounds_checking() {
     print a[1], a[5]
 end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a : array [5] integer
     a[0] := 10
-end)", 3);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a : array [5] integer
     print a[6]
-end)", 3);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a : array [5] integer
     a[-1] := 10
-end)", 3);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a : array [5] integer
     print a[2 + 4]
-end)", 3);
+end)");
 
     std::cout << "[PASS] test_array_bounds_checking\n";
 }
@@ -1288,21 +1404,21 @@ void test_division_by_zero() {
     var c is 10.0 / 2.5
 end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a is 10 / 0
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a is 10 % 0
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a is 10.0 / 0.0
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var a is 10 / (5 - 5)
-end)", 2);
+end)");
 
     std::cout << "[PASS] test_division_by_zero\n";
 }
@@ -1319,29 +1435,29 @@ void test_strict_int_to_bool() {
     end
 end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var b : boolean is 2
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var b : boolean is -1
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     var b : boolean
     b := 5
-end)", 3);
+end)");
 
-    expect_error_at(R"(routine main() is
+    expect_valid(R"(routine main() is
     if 2 then
     end
-end)", 2);
+end)");
 
-    expect_error_at(R"(routine test(b : boolean) is
+    expect_valid(R"(routine test(b : boolean) is
 end
 routine main() is
     test(2)
-end)", 4);
+end)");
 
     std::cout << "[PASS] test_strict_int_to_bool\n";
 }
@@ -1365,9 +1481,12 @@ int main() {
     test_equality_operator_types();
     test_unsized_array_only_in_parameters();
     test_secondary_error_suppression();
+    test_forward_definition_parameter_names();
     test_unsized_parameter_accepts_any_array();
+    test_unsized_array_does_not_match_fixed_type();
     test_explicit_type_initializer_from_source();
     test_unsized_array_positions_from_source();
+    test_fixed_array_size_requires_positive_integer_literal();
     test_aggregates_are_not_comparable();
     test_record_field_initializers();
     test_records_from_different_scopes_are_distinct();
@@ -1382,6 +1501,7 @@ int main() {
     test_print();
     test_scopes();
     test_unified_namespace();
+    test_shadowing_across_name_categories();
     test_diagnostics_order_and_format();
     test_array_bounds_checking();
     test_division_by_zero();
