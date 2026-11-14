@@ -4,6 +4,8 @@
 #include <optional>
 #include <vector>
 
+class VariableDeclaration;
+
 enum class TypeKind {
     Integer,
     Real,
@@ -90,6 +92,7 @@ public:
 struct RecordField {
     std::string name;
     TypeRef type;
+    const VariableDeclaration* declaration = nullptr;
 };
 
 class RecordType : public Type {

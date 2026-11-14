@@ -42,7 +42,7 @@ TypeRef RecordTypeRule::resolve(RecordTypeNode& node, const Context& ctx) {
             }
         }
 
-        fields.push_back(RecordField{decl->name, field_type});
+        fields.push_back(RecordField{decl->name, field_type, decl.get()});
     }
 
     return m_services.types.make_record("", std::move(fields));

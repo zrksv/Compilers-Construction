@@ -88,6 +88,13 @@ void RoutineDeclarationRule::analyze_body(RoutineDeclaration& node, const Contex
         body_ctx.scope->declare_variable(param);
     }
 
+    for (const auto& param_node : node.parameters) {
+        const auto* symbol = body_ctx.scope->lookup_variable(param_node->name, false);
+        if (symbol) {
+            m_services.model.bind_variable(param_node.get(), symbol);
+        }
+    }
+
     if (node.body_type == RoutineBodyType::Expression) {
         if (sym->return_type->is_void()) {
             error(node.location, "Procedure '" + sym->name + "' cannot have an expression body");
@@ -110,6 +117,9 @@ void RoutineDeclarationRule::analyze_body(RoutineDeclaration& node, const Contex
 
 StmtResult RoutineDeclarationRule::analyze(RoutineDeclaration& node, const Context& ctx) {
     RoutineSymbol* sym = declare_header(node, ctx);
+    if (sym) {
+        m_services.model.bind_routine(&node, sym);
+    }
     analyze_body(node, ctx, sym);
     return StmtResult{};
 }
