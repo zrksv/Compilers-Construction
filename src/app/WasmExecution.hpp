@@ -17,6 +17,9 @@ struct WasmExecutionResult {
     std::string diagnostic;
 };
 
+// Returns an empty diagnostic when the command-line arguments can be passed.
+std::string validate_wasm_arguments(const RoutineSymbol& routine, const std::vector<std::string>& arguments);
+
 // The runner provides host.report_trap(row: i32, column: i32, kind: i32) -> void.
 // Record the uint32 coordinates (JS: row >>> 0, column >>> 0), then use them in
 // diagnostic on failure. Clear the saved report before instantiation and each call;

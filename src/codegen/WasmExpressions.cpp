@@ -2,6 +2,7 @@
 #include "SemanticModel.hpp"
 
 #include <iomanip>
+#include <locale>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -12,6 +13,7 @@ namespace {
 // Seventeen significant decimal digits are enough to round-trip any double.
 std::string wat_real(double value) {
     std::ostringstream out;
+    out.imbue(std::locale::classic());
     out << std::setprecision(17) << value;
     std::string text = out.str();
     const bool looks_integral =
@@ -80,7 +82,14 @@ void emit_binary(WasmCodegen& codegen, WatWriter& writer,
             writer.instruction(is_real ? "f64.mul" : "i32.mul");
             break;
         case BinOp::Div:
-            writer.instruction(is_real ? "f64.div" : "i32.div_s");
+            if (is_real) { writer.instruction("f64.div"); break; }
+            {
+                const auto rhs = writer.temporary("i32"), lhs = writer.temporary("i32");
+                writer.instruction("local.set " + rhs); writer.instruction("local.set " + lhs);
+                writer.instruction("local.get " + lhs); writer.instruction("i64.extend_i32_s");
+                writer.instruction("local.get " + rhs); writer.instruction("i64.extend_i32_s");
+                writer.instruction("i64.div_s"); writer.instruction("i32.wrap_i64");
+            }
             break;
         case BinOp::Mod:
             writer.instruction("i32.rem_s");
@@ -245,12 +254,8 @@ void WasmCodegen::emit_call(const RoutineSymbol& routine,
                             const std::vector<Expression*>& arguments) {
     for (auto* argument : arguments) {
         emit_expr(*argument);
-        emit_conversion(model_->conversion_of(argument));
+        emit_conversion(model().conversion_of(argument));
     }
 
-    const auto found = function_ids_.find(&routine);
-    if (found == function_ids_.end()) {
-        throw std::logic_error("Missing function id for routine '" + routine.name + "'");
-    }
-    writer_.instruction("call " + found->second);
+    writer_.instruction("call " + function_id(routine));
 }

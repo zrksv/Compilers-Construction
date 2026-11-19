@@ -3,11 +3,6 @@
 
 #include <stdexcept>
 
-const SemanticModel& WasmCodegen::model() const {
-    if (!model_) { throw std::logic_error("WASM generation requires a semantic model"); }
-    return *model_;
-}
-
 void WasmCodegen::emit_initialized_value(Expression& expression) {
     emit_expr(expression);
     emit_conversion(model().conversion_of(&expression));

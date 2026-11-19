@@ -1,0 +1,249 @@
+type Cell is record
+    var value : integer
+end
+type Cells is array [2] Cell
+type IntRow is array [2] integer
+type IntMatrix is array [2] IntRow
+type RealValues is array [3] real
+
+var global_cell : Cell
+var global_alias : Cell is global_cell
+var seed_cell : Cell
+var global_value : integer is 17
+var global_count : integer is 0
+var range_order : integer is 0
+var range_calls : integer is 0
+var pool_calls : integer is 0
+var pool_values : RealValues
+
+routine sum(n : integer) : integer;
+routine even(n : integer) : boolean;
+routine odd(n : integer) : boolean;
+
+routine touch() : boolean;
+
+routine add(a : integer, b : integer) : integer => a + b
+
+routine sum(n : integer) : integer is
+    if n <= 0 then
+        return 0
+    else
+        return n + sum(n - 1)
+    end
+end
+
+routine even(n : integer) : boolean is
+    if n = 0 then
+        return true
+    else
+        return odd(n - 1)
+    end
+end
+
+routine odd(n : integer) : boolean is
+    if n = 0 then
+        return false
+    else
+        return even(n - 1)
+    end
+end
+
+routine control() : integer is
+    var total : integer is 0
+    var i : integer is 0
+    while i < 3 loop
+        total := total + i
+        i := i + 1
+    end
+    if total = 3 then
+        return total
+    else
+        return 99
+    end
+end
+
+routine ranges() : integer is
+    var total : integer is 0
+    for i in 1 .. 3 loop
+        total := total + i
+    end
+    for j in 1 .. 3 reverse loop
+        total := total + j
+    end
+    for k in 3 .. 2 loop
+        total := total + 100
+    end
+    for m in 4 .. 2 reverse loop
+        total := total + 100
+    end
+    return total
+end
+
+routine lower_bound() : integer is
+    range_calls := range_calls + 1
+    range_order := range_order * 10 + 1
+    return 1
+end
+
+routine upper_bound() : integer is
+    range_calls := range_calls + 1
+    range_order := range_order * 10 + 2
+    return 1
+end
+
+routine evaluated_bounds() : integer is
+    range_order := 0
+    range_calls := 0
+    var iterations : integer is 0
+    for i in lower_bound() .. upper_bound() loop
+        iterations := iterations + 1
+    end
+    return range_order * 100 + range_calls * 10 + iterations
+end
+
+routine range_max(bound : integer) : integer is
+    var iterations : integer is 0
+    for i in bound .. bound loop
+        iterations := iterations + 1
+    end
+    return iterations
+end
+
+routine range_min_reverse(bound : integer) : integer is
+    var iterations : integer is 0
+    for i in bound .. bound reverse loop
+        iterations := iterations + 1
+    end
+    return iterations
+end
+
+routine make_pool() : RealValues is
+    pool_calls := pool_calls + 1
+    return pool_values
+end
+
+routine reverse_real_pool() : real is
+    pool_calls := 0
+    pool_values[1] := 1.0
+    pool_values[2] := 2.0
+    pool_values[3] := 3.0
+    var total : real is 0.0
+    for value in make_pool() reverse loop
+        if value = 3.0 then
+            pool_values[1] := 9.0
+        end
+        total := total + value
+    end
+    return total * 10.0 + pool_calls
+end
+
+routine nested_matrix() : integer is
+    var matrix : IntMatrix
+    var row : integer is 2
+    if true then
+        var column : integer is 1
+        matrix[row][column] := 77
+    end
+    return matrix[2][1]
+end
+
+routine array_sum() : integer is
+    var values : array [3] integer
+    values[1] := 1
+    values[2] := 2
+    values[3] := 3
+    var total : integer is 0
+    for value in values loop
+        total := total + value
+    end
+    return total
+end
+
+routine init_global() : integer is
+    return global_value
+end
+
+routine aggregate_default() : integer is
+    return global_cell.value
+end
+
+routine aggregate_reference() : integer is
+    global_alias.value := 23
+    return global_cell.value
+end
+
+routine aggregate_rebinding() : integer is
+    var local_cell : Cell
+    var alias_cell : Cell is local_cell
+    alias_cell.value := 8
+    alias_cell := seed_cell
+    alias_cell.value := 4
+    return local_cell.value
+end
+
+routine array_record_iteration() : integer is
+    var cells : Cells
+    cells[1].value := 2
+    cells[2].value := 3
+    for cell in cells loop
+        cell.value := cell.value + 1
+    end
+    return cells[1].value + cells[2].value
+end
+
+routine touch() : boolean is
+    global_count := global_count + 1
+    return true
+end
+
+routine short_circuit() : integer is
+    global_count := 0
+    if false and touch() then
+        global_count := 99
+    end
+    if true or touch() then
+        global_count := global_count
+    end
+    return global_count
+end
+
+routine dynamic_short_circuit(a : boolean, b : boolean) : integer is
+    global_count := 0
+    if a and touch() then
+        global_count := global_count + 1
+    end
+    if b or touch() then
+        global_count := global_count + 1
+    end
+    return global_count
+end
+
+routine reverse_print() is
+    for i in 1 .. 3 reverse loop
+        print i
+    end
+end
+
+routine bad_index(index : integer) : integer is
+    var values : array [2] integer
+    values[1] := 10
+    values[2] := 20
+    return values[index]
+end
+
+routine strict_bool(value : integer) : boolean is
+    return value
+end
+
+routine accept_real(value : real) : real => value
+
+routine print_then_bad_index(index : integer) : integer is
+    print 99
+    var values : array [2] integer
+    return values[index]
+end
+
+routine divide(a : integer, b : integer) : integer => a / b
+routine print_values() is
+    print 42, true, 2.5
+end

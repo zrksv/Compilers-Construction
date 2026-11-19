@@ -3,8 +3,18 @@
 #include <string>
 #include <string_view>
 #include <functional>
+#include <vector>
+#include <cstdint>
 
 class WatWriter {
+private:
+    std::vector<std::string> items_;
+    std::vector<std::string> locals_;
+    std::vector<std::string> instructions_;
+    std::vector<std::vector<std::string>> captures_;
+    std::string function_header_;
+    std::uint32_t next_temporary_ = 0;
+    bool in_function_ = false;
 public:
     void reset();
     void module_item(std::string_view wat);

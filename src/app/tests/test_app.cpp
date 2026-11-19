@@ -290,8 +290,9 @@ int main() {
     std::cout << "Running App CLI Tests...\n";
 
     test_missing_arguments();
-    test_default_main();
     test_missing_default_main();
+#ifdef IMP_APP_RUNTIME_AVAILABLE
+    test_default_main();
     test_main_with_explicit_arguments();
     test_forward_and_definition();
     test_integer_argument_boundaries();
@@ -301,6 +302,7 @@ int main() {
     test_real_argument_parsing();
     test_real_argument_underflow();
     test_real_argument_zero_and_subnormal();
+#endif
     test_aggregate_entry_parameters();
     test_interactive_validation();
     test_interactive_without_file();
@@ -308,7 +310,11 @@ int main() {
     test_interactive_default_main();
     test_interactive_parameter_quotes();
     test_file_not_found();
+#ifdef IMP_APP_RUNTIME_AVAILABLE
     test_valid_routine();
+#else
+    std::cout << "[SKIP] App execution test requires wat2wasm, wasm-validate, and Node.js\n";
+#endif
     test_routine_not_found();
     test_wrong_argument_count();
     test_forward_only_routine();
