@@ -69,6 +69,10 @@ Place WasmStorage::emit_place(const Expression& expression, const SemanticModel&
         return {PlaceKind::Memory, {}, type.get()};
     }
 
+    if (const auto* access = dynamic_cast<const FieldAccessExpr*>(&expression)) {
+        return emit_record_field_address(*access, model, instructions, emit_value);
+    }
+
     throw std::logic_error("Unsupported storage expression");
 }
 
@@ -161,7 +165,10 @@ void WasmStorage::emit_local_variable(const VariableDeclaration& declaration, co
     if (declaration.expression) {
         instructions.push_back(emit_initializer(*declaration.expression));
     } else {
-        emit_default_value(*symbol, local_declarations, instructions);
+        if (!symbol->type) {
+            throw std::logic_error("Missing type for variable '" + symbol->name + "'");
+        }
+        emit_default_value(*symbol->type, local_declarations, instructions, emit_initializer);
     }
 
     bind_local(*symbol, wat_name);
@@ -192,7 +199,10 @@ void WasmStorage::emit_global_variable(const VariableDeclaration& declaration, c
     if (declaration.expression) {
         init_instructions.push_back(emit_initializer(*declaration.expression));
     } else {
-        emit_default_value(*symbol, init_local_declarations, init_instructions);
+        if (!symbol->type) {
+            throw std::logic_error("Missing type for variable '" + symbol->name + "'");
+        }
+        emit_default_value(*symbol->type, init_local_declarations, init_instructions, emit_initializer);
     }
 
     bind_global(*symbol, wat_name);
@@ -245,16 +255,11 @@ std::uint64_t WasmStorage::array_allocation_size(const ArrayType& array) {
 
 void WasmStorage::emit_primitive_array_creation(const ArrayType& array,
     const std::string& address_local, std::vector<std::string>& instructions) {
-    const auto bytes = array_allocation_size(array);
     if (array.element_type->is_array() || array.element_type->is_record()) {
         throw std::logic_error("Expected a primitive array element type");
     }
 
-    instructions.push_back("i64.const " + std::to_string(bytes));
-    instructions.push_back("call $alloc");
-    instructions.push_back("local.tee " + address_local);
-    instructions.push_back("i32.const " + std::to_string(*array.size));
-    instructions.push_back("i32.store");
+    emit_array_allocation(array, address_local, instructions);
     instructions.push_back("local.get " + address_local);
 }
 
@@ -387,21 +392,4 @@ std::string WasmStorage::memory_runtime() {
     i32.wrap_i64
 )
 )wat";
-}
-
-void WasmStorage::emit_default_value(const VariableSymbol& symbol,
-    std::vector<std::string>& local_declarations, std::vector<std::string>& instructions) {
-    if (!symbol.type) {
-        throw std::logic_error("Missing type for variable '" + symbol.name + "'");
-    }
-
-    const auto type = symbol.type->unalias();
-
-    if (const auto* array = dynamic_cast<const ArrayType*>(type.get())) {
-        const auto address_local = add_i32_temporary(local_declarations);
-        emit_primitive_array_creation(*array, address_local, instructions);
-        return;
-    }
-
-    instructions.push_back(default_value_instruction(symbol));
 }

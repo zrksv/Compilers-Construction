@@ -16,6 +16,8 @@ class Program;
 class ArrayType;
 class Type;
 class ElementAccessExpr;
+class FieldAccessExpr;
+class RecordType;
 
 enum class PlaceKind {
     Local,
@@ -34,6 +36,11 @@ struct ArrayLayout {
     std::uint32_t element_stride;
 };
 
+struct RecordLayout {
+    std::vector<std::uint64_t> field_offsets;
+    std::uint64_t allocation_size;
+};
+
 class WasmStorage {
 private:
     std::unordered_map<const VariableSymbol*, Place> locals_;
@@ -41,8 +48,16 @@ private:
     std::uint32_t next_temporary_ = 0;
     std::string add_i32_temporary(std::vector<std::string>& local_declarations);
 
-    void emit_default_value(const VariableSymbol& symbol, std::vector<std::string>& local_declarations,
+    void emit_default_value(Type& type, std::vector<std::string>& local_declarations,
+        std::vector<std::string>& instructions, const std::function<std::string(const Expression&)>& emit_initializer);
+    void emit_record_creation(const RecordType& record, std::vector<std::string>& local_declarations,
+        std::vector<std::string>& instructions, const std::function<std::string(const Expression&)>& emit_initializer);
+    void emit_array_creation(const ArrayType& array, std::vector<std::string>& local_declarations,
+        std::vector<std::string>& instructions, const std::function<std::string(const Expression&)>& emit_initializer);
+    static void emit_array_allocation(const ArrayType& array, const std::string& address_local,
         std::vector<std::string>& instructions);
+    static Place emit_record_field_address(const FieldAccessExpr& access, const SemanticModel& model,
+        std::vector<std::string>& instructions, const std::function<std::string(const Expression&)>& emit_value);
 
 public:
     // Call once before emitting each function, including the global initializer.
@@ -65,8 +80,6 @@ public:
     static std::string store_instruction(const Place& place);
     static std::string default_value_instruction(const VariableSymbol& symbol);
 
-    // emit_initializer leaves one value, already converted to the variable's type.
-    // Without an initializer, primitive arrays allocate a fresh zero-filled object.
     void emit_local_variable(const VariableDeclaration& declaration, const SemanticModel& model,
         const std::string& wat_name, std::vector<std::string>& local_declarations,
         std::vector<std::string>& instructions, const std::function<std::string(const Expression&)>& emit_initializer);
@@ -83,6 +96,7 @@ public:
         const std::function<std::string(const Expression&)>& emit_initializer);
 
     static ArrayLayout array_layout(const ArrayType& array);
+    static RecordLayout record_layout(const RecordType& record);
     static std::uint64_t array_allocation_size(const ArrayType& array);
     static void emit_primitive_array_creation(const ArrayType& array,
         const std::string& address_local, std::vector<std::string>& instructions);
