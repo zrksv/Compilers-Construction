@@ -41,7 +41,11 @@ private:
     std::uint32_t next_temporary_ = 0;
     std::string add_i32_temporary(std::vector<std::string>& local_declarations);
 
+    void emit_default_value(const VariableSymbol& symbol, std::vector<std::string>& local_declarations,
+        std::vector<std::string>& instructions);
+
 public:
+    // Call once before emitting each function, including the global initializer.
     void begin_function();
     void bind_local(const VariableSymbol& symbol, const std::string& wat_name);
     void bind_global(const VariableSymbol& symbol, const std::string& wat_name);
@@ -61,6 +65,8 @@ public:
     static std::string store_instruction(const Place& place);
     static std::string default_value_instruction(const VariableSymbol& symbol);
 
+    // emit_initializer leaves one value, already converted to the variable's type.
+    // Without an initializer, primitive arrays allocate a fresh zero-filled object.
     void emit_local_variable(const VariableDeclaration& declaration, const SemanticModel& model,
         const std::string& wat_name, std::vector<std::string>& local_declarations,
         std::vector<std::string>& instructions, const std::function<std::string(const Expression&)>& emit_initializer);
@@ -69,9 +75,12 @@ public:
         const std::function<std::string(const Expression&)>& emit_value);
     void emit_global_variable(const VariableDeclaration& declaration, const SemanticModel& model,
         const std::string& wat_name, std::vector<std::string>& global_declarations,
-        std::vector<std::string>& init_instructions, const std::function<std::string(const Expression&)>& emit_initializer);
+        std::vector<std::string>& init_local_declarations, std::vector<std::string>& init_instructions,
+        const std::function<std::string(const Expression&)>& emit_initializer);
+    // Emit once per module. Locals and instructions belong to a single init function.
     void emit_globals(const Program& program, const SemanticModel& model, std::vector<std::string>& global_declarations,
-        std::vector<std::string>& init_instructions, const std::function<std::string(const Expression&)>& emit_initializer);
+        std::vector<std::string>& init_local_declarations, std::vector<std::string>& init_instructions,
+        const std::function<std::string(const Expression&)>& emit_initializer);
 
     static ArrayLayout array_layout(const ArrayType& array);
     static std::uint64_t array_allocation_size(const ArrayType& array);
@@ -85,4 +94,7 @@ public:
     void emit_array_element_address(const ElementAccessExpr& access, const SemanticModel& model,
         std::vector<std::string>& local_declarations, std::vector<std::string>& instructions,
         const std::function<std::string(const Expression&)>& emit_value);
+
+    // Add once at module scope. Defines memory, $heap and $alloc (i64) -> i32.
+    static std::string memory_runtime();
 };

@@ -7,6 +7,8 @@
 #include "types/TypeFactory.hpp"
 
 #include <cassert>
+#include <algorithm>
+#include <fstream>
 #include <stdexcept>
 
 // A bound parameter resolves to its named local slot.
@@ -329,7 +331,8 @@ static void test_global_initializers_preserve_source_order() {
     std::vector<std::string> globals;
     std::vector<std::string> instructions;
     const auto& model = analyzer.get_model();
-    storage.emit_globals(*program, model, globals, instructions,
+    std::vector<std::string> init_locals;
+    storage.emit_globals(*program, model, globals, init_locals, instructions,
         [&](const Expression& expression) {
             if (const auto* literal = dynamic_cast<const IntLiteral*>(&expression)) {
                 return "i32.const " + std::to_string(literal->value);
@@ -356,8 +359,9 @@ static void test_global_variable_without_initializer() {
 
     WasmStorage storage;
     std::vector<std::string> globals;
+    std::vector<std::string> init_locals;
     std::vector<std::string> instructions;
-    storage.emit_global_variable(declaration, model, "$g0", globals, instructions, {});
+    storage.emit_global_variable(declaration, model, "$g0", globals, init_locals, instructions, {});
 
     assert((globals == std::vector<std::string>{"(global $g0 (mut f64) (f64.const 0))"}));
     assert((instructions == std::vector<std::string>{"f64.const 0", "global.set $g0"}));
@@ -569,7 +573,167 @@ static void test_assignment_writes_array_element() {
     assert(instructions.back() == "f64.store");
 }
 
-int main() {
+// An aliased local array allocates once and stores its reference in the declared slot.
+static void test_local_array_without_initializer() {
+    SourceManager source("type Values is array [3] real\nroutine create() is\nvar values : Values\nend\n");
+    Lexer lexer(source);
+    ParserDriver parser;
+    assert(parser.parse(lexer));
+    auto* program = dynamic_cast<Program*>(parser.get_ast());
+    SemanticAnalyzer analyzer;
+    assert(program && analyzer.analyze(program));
+    const auto* routine = dynamic_cast<const RoutineDeclaration*>(program->declarations[1].get());
+    assert(routine && routine->body.size() == 1);
+    const auto* declaration = dynamic_cast<const VariableDeclaration*>(routine->body.front().get());
+    assert(declaration);
+
+    WasmStorage storage;
+    storage.begin_function();
+    std::vector<std::string> locals;
+    std::vector<std::string> instructions;
+    storage.emit_local_variable(*declaration, analyzer.get_model(), "$values", locals, instructions, {});
+
+    assert(locals.size() == 2);
+    assert(std::count(instructions.begin(), instructions.end(), "call $alloc") == 1);
+    assert(instructions.front() == "i64.const 32");
+    assert(instructions.back() == "local.set $values");
+    const auto* symbol = analyzer.get_model().variable_of(declaration);
+    assert(symbol && storage.find_place(*symbol)->wat_name == "$values");
+}
+
+// Global defaults allocate distinct objects; an explicit initializer copies a prior reference.
+static void test_global_arrays_and_reference_initializer() {
+    SourceManager source("type Values is array [3] real\nvar first : Values\nvar second : Values\nvar shared : Values is first\n");
+    Lexer lexer(source);
+    ParserDriver parser;
+    assert(parser.parse(lexer));
+    auto* program = dynamic_cast<Program*>(parser.get_ast());
+    SemanticAnalyzer analyzer;
+    assert(program && analyzer.analyze(program));
+
+    WasmStorage storage;
+    storage.begin_function();
+    std::vector<std::string> globals, locals, instructions;
+    int initializer_calls = 0;
+    storage.emit_globals(*program, analyzer.get_model(), globals, locals, instructions,
+        [&](const Expression& expression) {
+            ++initializer_calls;
+            const auto* identifier = dynamic_cast<const Identifier*>(&expression);
+            assert(identifier);
+            const auto* place = storage.place_of(*identifier, analyzer.get_model());
+            assert(place && place->wat_name == "$g0");
+            return WasmStorage::load_instruction(*place);
+        });
+
+    assert(globals.size() == 3 && locals.size() == 2);
+    assert(locals[0] != locals[1]);
+    assert(initializer_calls == 1);
+    assert(std::count(instructions.begin(), instructions.end(), "call $alloc") == 2);
+    const auto first_store = std::find(instructions.begin(), instructions.end(), "global.set $g0");
+    const auto second_store = std::find(instructions.begin(), instructions.end(), "global.set $g1");
+    assert(first_store < second_store);
+    assert(instructions[instructions.size() - 2] == "global.get $g0");
+    assert(instructions.back() == "global.set $g2");
+}
+
+// A local initialized from an existing array evaluates the reference once without allocation.
+static void test_local_array_reference_initializer() {
+    TypeFactory types;
+    const auto array = types.make_array(PrimitiveType::get_boolean(), 2);
+    VariableDeclaration declaration("shared", nullptr, std::make_unique<Identifier>("source", Location{}), Location{});
+    VariableSymbol symbol("shared", array);
+    SemanticModel model;
+    model.bind_variable(&declaration, &symbol);
+    WasmStorage storage;
+    std::vector<std::string> locals, instructions;
+    int calls = 0;
+    storage.emit_local_variable(declaration, model, "$shared", locals, instructions,
+        [&](const Expression&) { ++calls; return "local.get $source"; });
+    assert(calls == 1 && locals.size() == 1);
+    assert((instructions == std::vector<std::string>{"local.get $source", "local.set $shared"}));
+}
+
+// Produce a module from the real storage emitters for the optional WABT/Node runtime tests.
+static void write_memory_fixture(const std::string& path) {
+    SourceManager source(R"(type Reals is array [3] real
+var reals : Reals
+var integers : array [2] integer
+var flags : array [2] boolean
+var shared : Reals is reals
+routine create() is
+    var values : Reals
+end
+)");
+    Lexer lexer(source);
+    ParserDriver parser;
+    assert(parser.parse(lexer));
+    auto* program = dynamic_cast<Program*>(parser.get_ast());
+    SemanticAnalyzer analyzer;
+    assert(program && analyzer.analyze(program));
+    const auto& model = analyzer.get_model();
+    WasmStorage storage;
+    storage.begin_function();
+    std::vector<std::string> globals, init_locals, init;
+    storage.emit_globals(*program, model, globals, init_locals, init, [&](const Expression& expression) {
+        const auto* identifier = dynamic_cast<const Identifier*>(&expression);
+        assert(identifier);
+        const auto* place = storage.place_of(*identifier, model);
+        assert(place);
+        return WasmStorage::load_instruction(*place);
+    });
+
+    std::ofstream output(path);
+    if (!output) {
+        throw std::runtime_error("Cannot write memory fixture: " + path);
+    }
+    const auto emit_lines = [&](const std::vector<std::string>& lines) {
+        for (const auto& line : lines) { output << line << '\n'; }
+    };
+    output << "(module\n" << WasmStorage::memory_runtime();
+    output << "(export \"memory\" (memory 0))\n(export \"alloc\" (func $alloc))\n";
+    emit_lines(globals);
+    output << "(func $init\n";
+    emit_lines(init_locals);
+    emit_lines(init);
+    output << ")\n(start $init)\n";
+    for (int i = 0; i < 4; ++i) {
+        output << "(func (export \"global" << i << "\") (result i32) global.get $g" << i << ")\n";
+    }
+
+    storage.begin_function();
+    const auto* routine = dynamic_cast<const RoutineDeclaration*>(program->declarations.back().get());
+    assert(routine && routine->body.size() == 1);
+    const auto* declaration = dynamic_cast<const VariableDeclaration*>(routine->body.front().get());
+    assert(declaration);
+    std::vector<std::string> locals, instructions;
+    storage.emit_local_variable(*declaration, model, "$values", locals, instructions, {});
+    output << "(func (export \"new_local\") (result i32)\n";
+    emit_lines(locals);
+    emit_lines(instructions);
+    output << "local.get $values\n)\n";
+
+    const ArrayType array(PrimitiveType::get_real(), 3);
+    instructions.clear();
+    WasmStorage::emit_array_element_address(array, "$address", "$index", instructions);
+    output << "(func (export \"read_real\") (param $index i32) (result f64) (local $address i32)\n";
+    output << "global.get $g0\nlocal.set $address\n";
+    emit_lines(instructions);
+    output << "f64.load\n)\n";
+    output << "(func (export \"write_real\") (param $index i32) (param $value f64) (local $address i32)\n";
+    output << "global.get $g3\nlocal.set $address\n";
+    emit_lines(instructions);
+    output << "local.get $value\nf64.store\n)\n)\n";
+    output.close();
+    if (!output) {
+        throw std::runtime_error("Failed to write memory fixture: " + path);
+    }
+}
+
+int main(int argc, char** argv) {
+    if (argc == 3 && std::string(argv[1]) == "--write-memory-fixture") {
+        write_memory_fixture(argv[2]);
+        return 0;
+    }
     test_parameter_resolves_to_local_slot();
     test_same_name_symbols_have_distinct_slots();
     test_parameter_read_resolves_to_declaration_slot();
@@ -604,4 +768,7 @@ int main() {
     test_read_from_local_place();
     test_read_from_array_element_place();
     test_assignment_writes_array_element();
+    test_local_array_without_initializer();
+    test_global_arrays_and_reference_initializer();
+    test_local_array_reference_initializer();
 }

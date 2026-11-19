@@ -8,4 +8,8 @@ add_library(wasm_codegen STATIC
 target_include_directories(wasm_codegen PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(wasm_codegen PUBLIC common PRIVATE semantics)
 
+if(MSVC)
+    target_compile_options(wasm_codegen PRIVATE /EHsc)
+endif()
+
 add_subdirectory(tests)

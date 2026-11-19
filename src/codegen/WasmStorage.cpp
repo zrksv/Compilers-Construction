@@ -161,7 +161,7 @@ void WasmStorage::emit_local_variable(const VariableDeclaration& declaration, co
     if (declaration.expression) {
         instructions.push_back(emit_initializer(*declaration.expression));
     } else {
-        instructions.push_back(default_value_instruction(*symbol));
+        emit_default_value(*symbol, local_declarations, instructions);
     }
 
     bind_local(*symbol, wat_name);
@@ -179,7 +179,8 @@ void WasmStorage::emit_assignment(const AssignStatement& assignment, const Seman
 
 void WasmStorage::emit_global_variable(const VariableDeclaration& declaration, const SemanticModel& model,
     const std::string& wat_name, std::vector<std::string>& global_declarations,
-    std::vector<std::string>& init_instructions, const std::function<std::string(const Expression&)>& emit_initializer) {
+    std::vector<std::string>& init_local_declarations, std::vector<std::string>& init_instructions,
+    const std::function<std::string(const Expression&)>& emit_initializer) {
     const auto* symbol = model.variable_of(&declaration);
     if (!symbol) {
         throw std::logic_error(
@@ -188,18 +189,20 @@ void WasmStorage::emit_global_variable(const VariableDeclaration& declaration, c
 
     const auto slot_declaration = global_declaration(*symbol, wat_name);
     const Place place{PlaceKind::Global, wat_name};
-    const auto initial_value = declaration.expression
-        ? emit_initializer(*declaration.expression)
-        : default_value_instruction(*symbol);
+    if (declaration.expression) {
+        init_instructions.push_back(emit_initializer(*declaration.expression));
+    } else {
+        emit_default_value(*symbol, init_local_declarations, init_instructions);
+    }
 
     bind_global(*symbol, wat_name);
     global_declarations.push_back(slot_declaration);
-    init_instructions.push_back(initial_value);
     init_instructions.push_back(store_instruction(place));
 }
 
 void WasmStorage::emit_globals(const Program& program, const SemanticModel& model,
-    std::vector<std::string>& global_declarations, std::vector<std::string>& init_instructions,
+    std::vector<std::string>& global_declarations, std::vector<std::string>& init_local_declarations,
+    std::vector<std::string>& init_instructions,
     const std::function<std::string(const Expression&)>& emit_initializer) {
     for (const auto& declaration : program.declarations) {
         const auto* variable = dynamic_cast<const VariableDeclaration*>(declaration.get());
@@ -208,9 +211,8 @@ void WasmStorage::emit_globals(const Program& program, const SemanticModel& mode
         }
 
         const auto wat_name = "$g" + std::to_string(global_declarations.size());
-        emit_global_variable(
-            *variable, model, wat_name, global_declarations,
-            init_instructions, emit_initializer);
+        emit_global_variable(*variable, model, wat_name, global_declarations,
+            init_local_declarations, init_instructions, emit_initializer);
     }
 }
 
@@ -314,4 +316,92 @@ void WasmStorage::emit_array_element_address(const ElementAccessExpr& access, co
     instructions.push_back("local.set " + index_local);
 
     emit_array_element_address(*array_type, address_local, index_local, instructions);
+}
+
+std::string WasmStorage::memory_runtime() {
+    return R"wat(
+(memory 1)
+(global $heap (mut i64) (i64.const 8))
+
+(func $alloc (param $bytes i64) (result i32)
+    (local $address i64)
+    (local $end i64)
+    (local $required_pages i32)
+
+    local.get $bytes
+    i64.eqz
+    local.get $bytes
+    i64.const 4294967296
+    i64.gt_u
+    i32.or
+    if
+        unreachable
+    end
+
+    global.get $heap
+    local.set $address
+
+    local.get $address
+    local.get $bytes
+    i64.add
+    i64.const 7
+    i64.add
+    i64.const -8
+    i64.and
+    local.set $end
+
+    local.get $end
+    i64.const 4294967296
+    i64.gt_u
+    if
+        unreachable
+    end
+
+    local.get $end
+    i64.const 65535
+    i64.add
+    i64.const 16
+    i64.shr_u
+    i32.wrap_i64
+    local.set $required_pages
+
+    local.get $required_pages
+    memory.size
+    i32.gt_u
+    if
+        local.get $required_pages
+        memory.size
+        i32.sub
+        memory.grow
+        i32.const -1
+        i32.eq
+        if
+            unreachable
+        end
+    end
+
+    local.get $end
+    global.set $heap
+
+    local.get $address
+    i32.wrap_i64
+)
+)wat";
+}
+
+void WasmStorage::emit_default_value(const VariableSymbol& symbol,
+    std::vector<std::string>& local_declarations, std::vector<std::string>& instructions) {
+    if (!symbol.type) {
+        throw std::logic_error("Missing type for variable '" + symbol.name + "'");
+    }
+
+    const auto type = symbol.type->unalias();
+
+    if (const auto* array = dynamic_cast<const ArrayType*>(type.get())) {
+        const auto address_local = add_i32_temporary(local_declarations);
+        emit_primitive_array_creation(*array, address_local, instructions);
+        return;
+    }
+
+    instructions.push_back(default_value_instruction(symbol));
 }
