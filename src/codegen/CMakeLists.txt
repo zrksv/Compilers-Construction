@@ -2,6 +2,7 @@ add_library(wasm_codegen STATIC
         WasmStorage.cpp
         WasmStorage.hpp
         WasmCodegen.hpp
+        WasmExpressions.cpp
         WatWriter.cpp
         WatWriter.hpp
 )
