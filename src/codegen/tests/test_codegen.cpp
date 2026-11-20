@@ -396,10 +396,10 @@ static void test_nested_array_layout() {
 static void test_primitive_array_creation() {
     const ArrayType array(PrimitiveType::get_real(), 3);
     std::vector<std::string> instructions;
-    WasmStorage::emit_primitive_array_creation(array, "$array_addr", instructions);
+    WasmStorage::emit_primitive_array_creation(array, "$array_addr", instructions, Location{10, 3});
 
     assert((instructions == std::vector<std::string>{
-        "i64.const 32", "call $alloc", "local.tee $array_addr",
+        "i64.const 32", "i32.const 10", "i32.const 3", "call $alloc", "local.tee $array_addr",
         "i32.const 3", "i32.store", "local.get $array_addr"}));
 }
 
@@ -413,23 +413,23 @@ static void test_array_size_loads_header() {
 // The index check traps below one or above the length stored in the header.
 static void test_array_index_check() {
     std::vector<std::string> instructions;
-    WasmStorage::emit_array_index_check("$array_addr", "$index", instructions);
+    WasmStorage::emit_array_index_check("$array_addr", "$index", instructions, Location{42, 7});
     assert((instructions == std::vector<std::string>{
         "local.get $index", "i32.const 1", "i32.lt_s",
         "local.get $index", "local.get $array_addr", "i32.load", "i32.gt_s",
-        "i32.or", "if", "unreachable", "end"}));
+        "i32.or", "if", "i32.const 42", "i32.const 7", "i32.const 1", "call $trap", "unreachable", "end"}));
 }
 
 // Element address generation checks the index before applying the array layout.
 static void test_array_element_address() {
     const ArrayType array(PrimitiveType::get_real(), 3);
     std::vector<std::string> instructions;
-    WasmStorage::emit_array_element_address(array, "$array_addr", "$index", instructions);
+    WasmStorage::emit_array_element_address(array, "$array_addr", "$index", instructions, Location{42, 7});
 
     assert((instructions == std::vector<std::string>{
         "local.get $index", "i32.const 1", "i32.lt_s",
         "local.get $index", "local.get $array_addr", "i32.load", "i32.gt_s",
-        "i32.or", "if", "unreachable", "end",
+        "i32.or", "if", "i32.const 42", "i32.const 7", "i32.const 1", "call $trap", "unreachable", "end",
         "local.get $array_addr", "i32.const 8", "i32.add",
         "local.get $index", "i32.const 1", "i32.sub", "i32.const 8", "i32.mul", "i32.add"}));
 }
@@ -654,8 +654,12 @@ static void test_local_array_reference_initializer() {
 }
 
 // Produce a module from the real storage emitters for the optional WABT/Node runtime tests.
-static void write_memory_fixture(const std::string& path) {
-    SourceManager source(R"(type Reals is array [3] real
+static void write_memory_fixture(const std::string& path, bool fail_global = false) {
+    SourceManager source(fail_global ? R"(type Huge is record
+    var values : array [2147483647] real
+end
+var root : Huge
+)" : R"(type Reals is array [3] real
 var reals : Reals
 var integers : array [2] integer
 var flags : array [2] boolean
@@ -696,6 +700,12 @@ end
     emit_lines(init_locals);
     emit_lines(init);
     output << ")\n(start $init)\n";
+    if (fail_global) {
+        output << ")\n";
+        output.close();
+        if (!output) { throw std::runtime_error("Failed to write allocation failure fixture"); }
+        return;
+    }
     for (int i = 0; i < 4; ++i) {
         output << "(func (export \"global" << i << "\") (result i32) global.get $g" << i << ")\n";
     }
@@ -712,9 +722,23 @@ end
     emit_lines(instructions);
     output << "local.get $values\n)\n";
 
+    storage.begin_function();
+    TypeFactory types;
+    VariableDeclaration huge("huge", nullptr, nullptr, Location{87, 6});
+    VariableSymbol huge_symbol("huge", types.make_array(PrimitiveType::get_real(), 2147483647));
+    SemanticModel huge_model;
+    huge_model.bind_variable(&huge, &huge_symbol);
+    locals.clear();
+    instructions.clear();
+    storage.emit_local_variable(huge, huge_model, "$huge", locals, instructions, {});
+    output << "(func (export \"fail_local\")\n";
+    emit_lines(locals);
+    emit_lines(instructions);
+    output << ")\n";
+
     const ArrayType array(PrimitiveType::get_real(), 3);
     instructions.clear();
-    WasmStorage::emit_array_element_address(array, "$address", "$index", instructions);
+    WasmStorage::emit_array_element_address(array, "$address", "$index", instructions, Location{42, 7});
     output << "(func (export \"read_real\") (param $index i32) (result f64) (local $address i32)\n";
     output << "global.get $g0\nlocal.set $address\n";
     emit_lines(instructions);
@@ -729,7 +753,34 @@ end
     }
 }
 
+// The AST overload uses the access location, not the location of an evaluated operand.
+static void test_array_access_trap_location() {
+    ElementAccessExpr access(std::make_unique<Identifier>("values", Location{3, 1}),
+        std::make_unique<IntLiteral>(0, Location{3, 9}), Location{22, 8});
+    TypeFactory types;
+    SemanticModel model;
+    model.set_type(access.array.get(), types.make_array(PrimitiveType::get_integer(), 3));
+    WasmStorage storage;
+    std::vector<std::string> locals, instructions;
+    storage.emit_array_element_address(access, model, locals, instructions,
+        [&](const Expression& value) { return &value == access.array.get() ? "i32.const 64" : "i32.const 0"; });
+    const std::vector<std::string> report{"i32.const 22", "i32.const 8", "i32.const 1", "call $trap", "unreachable"};
+    assert(std::search(instructions.begin(), instructions.end(), report.begin(), report.end()) != instructions.end());
+}
+
+// The generic trap helper supports the same source-position ABI for other backend checks.
+static void test_generic_trap_location() {
+    std::vector<std::string> instructions;
+    WasmStorage::emit_trap(Location{19, 4}, WasmTrapKind::Conversion, instructions);
+    assert((instructions == std::vector<std::string>{
+        "i32.const 19", "i32.const 4", "i32.const 3", "call $trap", "unreachable"}));
+}
+
 int main(int argc, char** argv) {
+    if (argc == 3 && std::string(argv[1]) == "--write-failing-memory-fixture") {
+        write_memory_fixture(argv[2], true);
+        return 0;
+    }
     if (argc == 3 && std::string(argv[1]) == "--write-memory-fixture") {
         write_memory_fixture(argv[2]);
         return 0;
@@ -771,4 +822,6 @@ int main(int argc, char** argv) {
     test_local_array_without_initializer();
     test_global_arrays_and_reference_initializer();
     test_local_array_reference_initializer();
+    test_array_access_trap_location();
+    test_generic_trap_location();
 }

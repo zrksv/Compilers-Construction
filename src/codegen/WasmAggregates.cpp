@@ -45,24 +45,25 @@ Place WasmStorage::emit_record_field_address(const FieldAccessExpr& access, cons
 }
 
 // Every creation leaves one value: a primitive value or an aggregate reference.
-void WasmStorage::emit_default_value(Type& type, std::vector<std::string>& local_declarations,
+void WasmStorage::emit_default_value(Type& type, const Location& location, std::vector<std::string>& local_declarations,
     std::vector<std::string>& instructions, const std::function<std::string(const Expression&)>& emit_initializer) {
     const auto resolved = type.unalias();
     if (const auto* array = dynamic_cast<const ArrayType*>(resolved.get())) {
-        emit_array_creation(*array, local_declarations, instructions, emit_initializer);
+        emit_array_creation(*array, location, local_declarations, instructions, emit_initializer);
     } else if (const auto* record = dynamic_cast<const RecordType*>(resolved.get())) {
-        emit_record_creation(*record, local_declarations, instructions, emit_initializer);
+        emit_record_creation(*record, location, local_declarations, instructions, emit_initializer);
     } else {
         const auto value_type = wat_value_type(*resolved);
         instructions.push_back(value_type + ".const 0");
     }
 }
 
-void WasmStorage::emit_record_creation(const RecordType& record, std::vector<std::string>& local_declarations,
+void WasmStorage::emit_record_creation(const RecordType& record, const Location& location, std::vector<std::string>& local_declarations,
     std::vector<std::string>& instructions, const std::function<std::string(const Expression&)>& emit_initializer) {
     const auto layout = record_layout(record);
     const auto address = add_i32_temporary(local_declarations);
     instructions.push_back("i64.const " + std::to_string(layout.allocation_size));
+    emit_source_location(location, instructions);
     instructions.push_back("call $alloc");
     instructions.push_back("local.set " + address);
 
@@ -75,7 +76,8 @@ void WasmStorage::emit_record_creation(const RecordType& record, std::vector<std
         if (field.declaration && field.declaration->expression) {
             instructions.push_back(emit_initializer(*field.declaration->expression));
         } else {
-            emit_default_value(*field.type, local_declarations, instructions, emit_initializer);
+            const auto field_location = field.declaration ? field.declaration->location : location;
+            emit_default_value(*field.type, field_location, local_declarations, instructions, emit_initializer);
         }
         instructions.push_back(memory_store_instruction(*field.type));
     }
@@ -83,24 +85,25 @@ void WasmStorage::emit_record_creation(const RecordType& record, std::vector<std
 }
 
 void WasmStorage::emit_array_allocation(const ArrayType& array, const std::string& address_local,
-    std::vector<std::string>& instructions) {
+    std::vector<std::string>& instructions, const Location& location) {
     const auto bytes = array_allocation_size(array);
     instructions.push_back("i64.const " + std::to_string(bytes));
+    emit_source_location(location, instructions);
     instructions.push_back("call $alloc");
     instructions.push_back("local.tee " + address_local);
     instructions.push_back("i32.const " + std::to_string(*array.size));
     instructions.push_back("i32.store");
 }
 
-void WasmStorage::emit_array_creation(const ArrayType& array, std::vector<std::string>& local_declarations,
+void WasmStorage::emit_array_creation(const ArrayType& array, const Location& location, std::vector<std::string>& local_declarations,
     std::vector<std::string>& instructions, const std::function<std::string(const Expression&)>& emit_initializer) {
     const auto layout = array_layout(array);
     const auto address = add_i32_temporary(local_declarations);
     if (!array.element_type->is_array() && !array.element_type->is_record()) {
-        emit_primitive_array_creation(array, address, instructions);
+        emit_primitive_array_creation(array, address, instructions, location);
         return;
     }
-    emit_array_allocation(array, address, instructions);
+    emit_array_allocation(array, address, instructions, location);
     const auto index = add_i32_temporary(local_declarations);
     instructions.push_back("i32.const 0");
     instructions.push_back("local.set " + index);
@@ -118,7 +121,7 @@ void WasmStorage::emit_array_creation(const ArrayType& array, std::vector<std::s
     instructions.push_back("i32.const " + std::to_string(layout.element_stride));
     instructions.push_back("i32.mul");
     instructions.push_back("i32.add");
-    emit_default_value(*array.element_type, local_declarations, instructions, emit_initializer);
+    emit_default_value(*array.element_type, location, local_declarations, instructions, emit_initializer);
     instructions.push_back("i32.store");
 
     instructions.push_back("local.get " + index);

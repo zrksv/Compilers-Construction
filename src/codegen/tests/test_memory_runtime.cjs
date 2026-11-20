@@ -47,7 +47,7 @@ function testFreshLocalObjects(api) {
 }
 
 // Initializers share the same object, and checked indexing preserves f64 values.
-function testSharedReferenceAndIndexing(api) {
+function testSharedReferenceAndIndexing(api, reports) {
     assert.equal(api.global3(), api.global0());
     api.write_real(1, 2.75);
     api.write_real(3, -8.5);
@@ -56,33 +56,53 @@ function testSharedReferenceAndIndexing(api) {
     assert.equal(api.read_real(3), -8.5);
     for (const index of [-1, 0, 4, 2147483647]) {
         assert.throws(() => api.read_real(index), WebAssembly.RuntimeError);
+        assert.deepEqual(reports.at(-1), { row: 42, column: 7, kind: 1 });
         assert.throws(() => api.write_real(index, 7), WebAssembly.RuntimeError);
+        assert.deepEqual(reports.at(-1), { row: 42, column: 7, kind: 1 });
     }
     assert.equal(api.read_real(1), 2.75);
 }
 
 // Allocation aligns addresses, grows memory, and rejects invalid or overflowing sizes.
-function testAllocation(api) {
-    const first = api.alloc(1n);
-    const second = api.alloc(9n);
+function testAllocation(api, reports) {
+    const first = api.alloc(1n, 0, 0);
+    const second = api.alloc(9n, 0, 0);
     assert.equal(first % 8, 0);
     assert.equal(second, first + 8);
-    assert.equal(api.alloc(1n), second + 16);
+    assert.equal(api.alloc(1n, 0, 0), second + 16);
     for (const bytes of [0n, -1n, 4294967296n, 4294967297n]) {
-        assert.throws(() => api.alloc(bytes), WebAssembly.RuntimeError);
+        assert.throws(() => api.alloc(bytes, 73, 11), WebAssembly.RuntimeError);
+        assert.deepEqual(reports.at(-1), { row: 73, column: 11, kind: 2 });
     }
     const before = api.memory.buffer.byteLength;
-    const large = api.alloc(65536n);
+    const large = api.alloc(65536n, 0, 0);
     assert.ok(api.memory.buffer.byteLength > before);
     assert.ok(large + 65536 <= api.memory.buffer.byteLength);
     assert.equal(new DataView(api.memory.buffer).getInt32(large, true), 0);
 }
 
 // A failed memory.grow traps without advancing the heap pointer.
-function testGrowthFailure(api) {
-    const before = api.alloc(1n);
-    assert.throws(() => api.alloc(65536n), WebAssembly.RuntimeError);
-    assert.equal(api.alloc(1n), before + 8);
+function testGrowthFailure(api, reports) {
+    const before = api.alloc(1n, 0, 0);
+    assert.throws(() => api.alloc(65536n, 91, 12), WebAssembly.RuntimeError);
+    assert.deepEqual(reports.at(-1), { row: 91, column: 12, kind: 2 });
+    assert.equal(api.alloc(1n, 0, 0), before + 8);
+}
+
+// Local allocation reports its declaration location before the trap.
+function testLocalAllocationLocation(api, reports) {
+    assert.throws(() => api.fail_local(), WebAssembly.RuntimeError);
+    assert.deepEqual(reports.at(-1), { row: 87, column: 6, kind: 2 });
+}
+
+// Reports remain available even when nested global construction aborts instantiation.
+function testGlobalAllocationLocation(generator, compiler, wat, wasm) {
+    execFileSync(generator, ['--write-failing-memory-fixture', wat], { stdio: 'pipe' });
+    compileWat(compiler, wat, wasm);
+    const reports = [];
+    const imports = { host: { report_trap(row, column, kind) { reports.push({ row: row >>> 0, column: column >>> 0, kind }); } } };
+    assert.throws(() => new WebAssembly.Instance(new WebAssembly.Module(fs.readFileSync(wasm)), imports), WebAssembly.RuntimeError);
+    assert.deepEqual(reports, [{ row: 2, column: 5, kind: 2 }]);
 }
 
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'imperative-memory-'));
@@ -92,18 +112,22 @@ try {
     const wasm = path.join(directory, 'memory.wasm');
     execFileSync(generator, ['--write-memory-fixture', wat], { stdio: 'pipe' });
     compileWat(wat2wasm, wat, wasm);
-    const api = new WebAssembly.Instance(new WebAssembly.Module(fs.readFileSync(wasm))).exports;
+    const reports = [];
+    const imports = { host: { report_trap(row, column, kind) { reports.push({ row: row >>> 0, column: column >>> 0, kind }); } } };
+    const api = new WebAssembly.Instance(new WebAssembly.Module(fs.readFileSync(wasm)), imports).exports;
     testGlobalDefaults(api);
     testFreshLocalObjects(api);
-    testSharedReferenceAndIndexing(api);
-    testAllocation(api);
+    testSharedReferenceAndIndexing(api, reports);
+    testAllocation(api, reports);
+    testLocalAllocationLocation(api, reports);
 
     const original = fs.readFileSync(wat, 'utf8');
     assert.ok(original.includes('(memory 1)'));
     fs.writeFileSync(wat, original.replace('(memory 1)', '(memory 1 1)'));
     compileWat(wat2wasm, wat, wasm);
-    const limited = new WebAssembly.Instance(new WebAssembly.Module(fs.readFileSync(wasm))).exports;
-    testGrowthFailure(limited);
+    const limited = new WebAssembly.Instance(new WebAssembly.Module(fs.readFileSync(wasm)), imports).exports;
+    testGrowthFailure(limited, reports);
+    testGlobalAllocationLocation(generator, wat2wasm, wat, wasm);
     console.log('Memory runtime tests passed');
 } finally {
     assert.equal(path.dirname(directory), path.resolve(os.tmpdir()));

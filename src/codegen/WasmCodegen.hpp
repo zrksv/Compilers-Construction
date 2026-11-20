@@ -20,6 +20,7 @@ inline constexpr char print_f64[] = "$print_f64";
 inline constexpr char print_bool[] = "$print_bool";
 inline constexpr char print_space[] = "$print_space";
 inline constexpr char print_newline[] = "$print_newline";
+inline constexpr char report_trap[] = "$report_trap";
 }
 
 class WasmCodegen : public AstVisitor {
@@ -57,6 +58,8 @@ public:
     void emit_expr(Expression& expression);
     void emit_conversion(ConversionKind conversion);
     void emit_call(const RoutineSymbol& routine, const std::vector<Expression*>& arguments);
+
+    void emit_trap(const Location& location, WasmTrapKind kind);
     void visit(IntLiteral& node) override;
     void visit(RealLiteral& node) override;
     void visit(BoolLiteral& node) override;

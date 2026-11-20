@@ -136,13 +136,20 @@ try {
         const option = optimized ? '--write-optimized-record-fixture' : '--write-record-fixture';
         execFileSync(generator, [option, wat], { stdio: 'pipe' });
         compileWat(compiler, wat, wasm);
-        const api = new WebAssembly.Instance(new WebAssembly.Module(fs.readFileSync(wasm))).exports;
+        const reports = [];
+        const imports = { host: { report_trap(row, column, kind) { reports.push({ row: row >>> 0, column: column >>> 0, kind }); } } };
+        const api = new WebAssembly.Instance(new WebAssembly.Module(fs.readFileSync(wasm)), imports).exports;
         testRecursiveDefaults(api);
         testFieldInitializers(api);
         testLocalRecords(api);
         testFieldAccessAndSharing(api);
         testParameterRebinding(api);
         testEmptyRecords(api);
+        assert.equal(reports.length, 3);
+        for (const report of reports) {
+            assert.ok(report.row > 0 && report.column > 0);
+            assert.equal(report.kind, 1);
+        }
     }
     console.log('Record runtime tests passed with and without optimization');
 } finally {

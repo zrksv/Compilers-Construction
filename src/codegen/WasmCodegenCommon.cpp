@@ -13,6 +13,12 @@ void WasmCodegen::emit_initialized_value(Expression& expression) {
     emit_conversion(model().conversion_of(&expression));
 }
 
+void WasmCodegen::emit_trap(const Location& location, WasmTrapKind kind) {
+    std::vector<std::string> instructions;
+    WasmStorage::emit_trap(location, kind, instructions);
+    append_storage({}, instructions);
+}
+
 std::string WasmCodegen::capture_expr(const Expression& expression, bool convert) {
     return writer_.capture_instructions([&] {
         auto& node = const_cast<Expression&>(expression);

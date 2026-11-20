@@ -2,6 +2,7 @@
 #include "SemanticModel.hpp"
 
 #include <stdexcept>
+#include <limits>
 
 // ============================================================================
 // Slot bindings and lookup
@@ -168,7 +169,7 @@ void WasmStorage::emit_local_variable(const VariableDeclaration& declaration, co
         if (!symbol->type) {
             throw std::logic_error("Missing type for variable '" + symbol->name + "'");
         }
-        emit_default_value(*symbol->type, local_declarations, instructions, emit_initializer);
+        emit_default_value(*symbol->type, declaration.location, local_declarations, instructions, emit_initializer);
     }
 
     bind_local(*symbol, wat_name);
@@ -202,7 +203,7 @@ void WasmStorage::emit_global_variable(const VariableDeclaration& declaration, c
         if (!symbol->type) {
             throw std::logic_error("Missing type for variable '" + symbol->name + "'");
         }
-        emit_default_value(*symbol->type, init_local_declarations, init_instructions, emit_initializer);
+        emit_default_value(*symbol->type, declaration.location, init_local_declarations, init_instructions, emit_initializer);
     }
 
     bind_global(*symbol, wat_name);
@@ -253,13 +254,29 @@ std::uint64_t WasmStorage::array_allocation_size(const ArrayType& array) {
            static_cast<std::uint64_t>(*array.size) * layout.element_stride;
 }
 
+void WasmStorage::emit_source_location(const Location& location, std::vector<std::string>& instructions) {
+    if (location.row > std::numeric_limits<std::uint32_t>::max() ||
+        location.column > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::logic_error("Source location exceeds the WASM diagnostic range");
+    }
+    instructions.push_back("i32.const " + std::to_string(location.row));
+    instructions.push_back("i32.const " + std::to_string(location.column));
+}
+
+void WasmStorage::emit_trap(const Location& location, WasmTrapKind kind, std::vector<std::string>& instructions) {
+    emit_source_location(location, instructions);
+    instructions.push_back("i32.const " + std::to_string(static_cast<std::uint32_t>(kind)));
+    instructions.push_back("call $trap");
+    instructions.push_back("unreachable");
+}
+
 void WasmStorage::emit_primitive_array_creation(const ArrayType& array,
-    const std::string& address_local, std::vector<std::string>& instructions) {
+    const std::string& address_local, std::vector<std::string>& instructions, const Location& location) {
     if (array.element_type->is_array() || array.element_type->is_record()) {
         throw std::logic_error("Expected a primitive array element type");
     }
 
-    emit_array_allocation(array, address_local, instructions);
+    emit_array_allocation(array, address_local, instructions, location);
     instructions.push_back("local.get " + address_local);
 }
 
@@ -268,7 +285,7 @@ void WasmStorage::emit_array_size(std::vector<std::string>& instructions) {
 }
 
 void WasmStorage::emit_array_index_check(const std::string& address_local,
-    const std::string& index_local, std::vector<std::string>& instructions) {
+    const std::string& index_local, std::vector<std::string>& instructions, const Location& location) {
     instructions.push_back("local.get " + index_local);
     instructions.push_back("i32.const 1");
     instructions.push_back("i32.lt_s");
@@ -280,14 +297,14 @@ void WasmStorage::emit_array_index_check(const std::string& address_local,
     instructions.push_back("i32.or");
 
     instructions.push_back("if");
-    instructions.push_back("unreachable");
+    emit_trap(location, WasmTrapKind::ArrayBounds, instructions);
     instructions.push_back("end");
 }
 
 void WasmStorage::emit_array_element_address(const ArrayType& array, const std::string& address_local,
-    const std::string& index_local, std::vector<std::string>& instructions) {
+    const std::string& index_local, std::vector<std::string>& instructions, const Location& location) {
     const auto layout = array_layout(array);
-    emit_array_index_check(address_local, index_local, instructions);
+    emit_array_index_check(address_local, index_local, instructions, location);
 
     instructions.push_back("local.get " + address_local);
     instructions.push_back("i32.const " + std::to_string(layout.elements_offset));
@@ -320,15 +337,23 @@ void WasmStorage::emit_array_element_address(const ElementAccessExpr& access, co
     instructions.push_back(emit_value(*access.index));
     instructions.push_back("local.set " + index_local);
 
-    emit_array_element_address(*array_type, address_local, index_local, instructions);
+    emit_array_element_address(*array_type, address_local, index_local, instructions, access.location);
 }
 
 std::string WasmStorage::memory_runtime() {
     return R"wat(
+(import "host" "report_trap" (func $report_trap (param i32 i32 i32)))
+(func $trap (param $row i32) (param $column i32) (param $kind i32)
+    local.get $row
+    local.get $column
+    local.get $kind
+    call $report_trap
+    unreachable
+)
 (memory 1)
 (global $heap (mut i64) (i64.const 8))
 
-(func $alloc (param $bytes i64) (result i32)
+(func $alloc (param $bytes i64) (param $row i32) (param $column i32) (result i32)
     (local $address i64)
     (local $end i64)
     (local $required_pages i32)
@@ -340,6 +365,10 @@ std::string WasmStorage::memory_runtime() {
     i64.gt_u
     i32.or
     if
+        local.get $row
+        local.get $column
+        i32.const 2
+        call $trap
         unreachable
     end
 
@@ -359,6 +388,10 @@ std::string WasmStorage::memory_runtime() {
     i64.const 4294967296
     i64.gt_u
     if
+        local.get $row
+        local.get $column
+        i32.const 2
+        call $trap
         unreachable
     end
 
@@ -381,6 +414,10 @@ std::string WasmStorage::memory_runtime() {
         i32.const -1
         i32.eq
         if
+            local.get $row
+            local.get $column
+            i32.const 2
+            call $trap
             unreachable
         end
     end
