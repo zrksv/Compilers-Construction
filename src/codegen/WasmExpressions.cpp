@@ -153,98 +153,34 @@ void emit_call_expression(WasmCodegen& codegen, const SemanticModel& model,
     codegen.emit_call(*routine, arguments);
 }
 
-void emit_field_access(WasmCodegen& codegen, WatWriter& writer,
-                       const SemanticModel& model, FieldAccessExpr& access) {
-    if (access.field_name == "size") {
-        const auto array_type = model.type_of(access.object.get());
-        const auto resolved = array_type ? array_type->unalias() : nullptr;
-        if (!resolved || !resolved->is_array()) {
-            throw std::logic_error("'size' is only valid on arrays");
-        }
-        codegen.emit_expr(*access.object);
-        writer.instruction("i32.load"); // header stores the element count
-        return;
-    }
-
-    throw std::logic_error(
-        "Record field access is not implemented yet (no record layout in WasmStorage)");
-}
-
-void emit_element_access(WasmCodegen& codegen, WatWriter& writer,
-                         const SemanticModel& model, ElementAccessExpr& access) {
-    const auto array_type = model.type_of(access.array.get());
-    const auto resolved = array_type ? array_type->unalias() : nullptr;
-    const auto* array = dynamic_cast<const ArrayType*>(resolved.get());
-    if (!array) {
-        throw std::logic_error("Missing array type for element access");
-    }
-    const auto element_type = model.type_of(&access);
-    if (!element_type) {
-        throw std::logic_error("Missing element type for array access");
-    }
-
-    const auto address = writer.temporary("i32");
-    const auto index = writer.temporary("i32");
-
-    codegen.emit_expr(*access.array);
-    writer.instruction("local.set " + address);
-    codegen.emit_expr(*access.index);
-    writer.instruction("local.set " + index);
-
-    std::vector<std::string> address_instructions;
-    WasmStorage::emit_array_element_address(*array, address, index, address_instructions);
-    for (const auto& instruction : address_instructions) {
-        writer.instruction(instruction);
-    }
-
-    writer.instruction(WasmStorage::memory_load_instruction(*element_type));
-}
-
 } // namespace
 
 void WasmCodegen::emit_expr(Expression& expression) {
-    if (auto* literal = dynamic_cast<IntLiteral*>(&expression)) {
-        writer_.instruction("i32.const " + std::to_string(literal->value));
-        return;
-    }
-    if (auto* literal = dynamic_cast<RealLiteral*>(&expression)) {
-        writer_.instruction("f64.const " + wat_real(literal->value));
-        return;
-    }
-    if (auto* literal = dynamic_cast<BoolLiteral*>(&expression)) {
-        writer_.instruction(literal->value ? "i32.const 1" : "i32.const 0");
-        return;
-    }
-    if (auto* identifier = dynamic_cast<Identifier*>(&expression)) {
-        const auto* place = storage_.place_of(*identifier, *model_);
-        if (!place) {
-            throw std::logic_error("Missing WASM slot for variable '" + identifier->name + "'");
-        }
-        writer_.instruction(WasmStorage::load_instruction(*place));
-        return;
-    }
-    if (auto* unary = dynamic_cast<UnaryExpr*>(&expression)) {
-        emit_unary(*this, writer_, *model_, *unary);
-        return;
-    }
-    if (auto* binary = dynamic_cast<BinaryExpr*>(&expression)) {
-        emit_binary(*this, writer_, *model_, *binary);
-        return;
-    }
-    if (auto* call = dynamic_cast<RoutineCallExpr*>(&expression)) {
-        emit_call_expression(*this, *model_, *call);
-        return;
-    }
-    if (auto* access = dynamic_cast<FieldAccessExpr*>(&expression)) {
-        emit_field_access(*this, writer_, *model_, *access);
-        return;
-    }
-    if (auto* access = dynamic_cast<ElementAccessExpr*>(&expression)) {
-        emit_element_access(*this, writer_, *model_, *access);
-        return;
-    }
+    expression.accept(*this);
+}
 
-    throw std::logic_error("Unsupported expression in WASM codegen");
+void WasmCodegen::visit(IntLiteral& node) {
+    writer_.instruction("i32.const " + std::to_string(node.value));
+}
+
+void WasmCodegen::visit(RealLiteral& node) {
+    writer_.instruction("f64.const " + wat_real(node.value));
+}
+
+void WasmCodegen::visit(BoolLiteral& node) {
+    writer_.instruction(node.value ? "i32.const 1" : "i32.const 0");
+}
+
+void WasmCodegen::visit(UnaryExpr& node) {
+    emit_unary(*this, writer_, model(), node);
+}
+
+void WasmCodegen::visit(BinaryExpr& node) {
+    emit_binary(*this, writer_, model(), node);
+}
+
+void WasmCodegen::visit(RoutineCallExpr& node) {
+    emit_call_expression(*this, model(), node);
 }
 
 void WasmCodegen::emit_conversion(ConversionKind conversion) {
@@ -268,6 +204,7 @@ void WasmCodegen::emit_conversion(ConversionKind conversion) {
             writer_.instruction("i32.const 1");
             writer_.instruction("i32.eq"); // value == 1
             writer_.instruction("i32.or"); // (value == 0) || (value == 1)
+            writer_.instruction("i32.eqz"); // trap only for values other than 0 and 1
             writer_.instruction("if");
             writer_.instruction("unreachable");
             writer_.instruction("end");
@@ -276,22 +213,27 @@ void WasmCodegen::emit_conversion(ConversionKind conversion) {
         }
 
         case ConversionKind::RealToInteger: {
-            // Round half away from zero (A10), then trap on out-of-range values.
-            const auto temporary = writer_.temporary("f64");
-            writer_.instruction("local.set " + temporary);
-            writer_.instruction("local.get " + temporary);
-            writer_.instruction("f64.const 0");
-            writer_.instruction("f64.lt"); // value < 0
-            writer_.instruction("if (result f64)");
-            writer_.instruction("local.get " + temporary);
-            writer_.instruction("f64.const 0.5");
+            // Compare the fractional part without first adding 0.5 to the input.
+            const auto value = writer_.temporary("f64");
+            const auto integral = writer_.temporary("f64");
+            writer_.instruction("local.set " + value);
+            writer_.instruction("local.get " + value);
+            writer_.instruction("f64.trunc");
+            writer_.instruction("local.set " + integral);
+            writer_.instruction("local.get " + value);
+            writer_.instruction("local.get " + integral);
             writer_.instruction("f64.sub");
-            writer_.instruction("f64.ceil");
-            writer_.instruction("else");
-            writer_.instruction("local.get " + temporary);
+            writer_.instruction("f64.abs");
             writer_.instruction("f64.const 0.5");
+            writer_.instruction("f64.ge");
+            writer_.instruction("if (result f64)");
+            writer_.instruction("local.get " + integral);
+            writer_.instruction("f64.const 1");
+            writer_.instruction("local.get " + value);
+            writer_.instruction("f64.copysign");
             writer_.instruction("f64.add");
-            writer_.instruction("f64.floor");
+            writer_.instruction("else");
+            writer_.instruction("local.get " + integral);
             writer_.instruction("end");
             writer_.instruction("i32.trunc_f64_s");
             return;
