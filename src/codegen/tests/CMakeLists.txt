@@ -6,8 +6,6 @@ if(MSVC)
     target_compile_options(test_codegen_records PRIVATE /EHsc)
 endif()
 
-find_program(WAT2WASM_EXECUTABLE NAMES wat2wasm)
-find_program(NODE_EXECUTABLE NAMES node)
 if(WAT2WASM_EXECUTABLE AND NODE_EXECUTABLE)
     add_test(NAME CodegenMemoryRuntimeTest COMMAND "${NODE_EXECUTABLE}"
         "${CMAKE_CURRENT_SOURCE_DIR}/test_memory_runtime.cjs"

@@ -3,6 +3,7 @@
 #include "semantics/symbols/Symbol.hpp"
 #include "semantics/types/Type.hpp"
 
+#include <array>
 #include <atomic>
 #include <charconv>
 #include <cmath>
@@ -34,6 +35,15 @@ extern char **environ;
 #ifndef IMP_WASM_RUNNER_PATH
 #define IMP_WASM_RUNNER_PATH "runtime/runner.mjs"
 #endif
+#ifndef IMP_WAT2WASM_PATH
+#define IMP_WAT2WASM_PATH "wat2wasm"
+#endif
+#ifndef IMP_WASM_VALIDATE_PATH
+#define IMP_WASM_VALIDATE_PATH "wasm-validate"
+#endif
+#ifndef IMP_NODE_PATH
+#define IMP_NODE_PATH "node"
+#endif
 
 namespace {
 
@@ -50,6 +60,37 @@ std::string read_file(const std::filesystem::path &path) {
 }
 
 std::string path_to_utf8(const std::filesystem::path &path);
+
+std::filesystem::path utf8_to_path(std::string_view text) {
+  return std::filesystem::path(std::u8string(text.begin(), text.end()));
+}
+
+std::string runtime_tool(const char *configured, const char *name) {
+  const auto path = utf8_to_path(configured);
+  std::error_code error;
+  if (path.is_absolute() && std::filesystem::is_regular_file(path, error))
+    return configured;
+  return name;
+}
+
+std::vector<std::string> wabt_command(
+    const std::string &tool, const std::string &node,
+    std::vector<std::string> arguments) {
+  arguments.insert(arguments.begin(), tool);
+  const auto path = utf8_to_path(tool);
+  if (path.is_absolute()) {
+    // npm WABT uses Node scripts. Run them with the same Node as the runner.
+    std::ifstream file(path, std::ios::binary);
+    std::array<char, 80> prefix{};
+    file.read(prefix.data(), prefix.size());
+    const std::string_view header(prefix.data(), static_cast<std::size_t>(file.gcount()));
+    const auto first_line = header.substr(0, header.find('\n'));
+    if (first_line.starts_with("#!") &&
+        first_line.find("node") != std::string_view::npos)
+      arguments.insert(arguments.begin(), node);
+  }
+  return arguments;
+}
 
 #ifdef _WIN32
 class WinHandle {
@@ -250,6 +291,18 @@ ProcessResult run_process(const std::vector<std::string> &arguments,
   return {exit_code, read_file(stdout_path), read_file(stderr_path)};
 }
 #endif
+
+ProcessResult run_required_process(const std::vector<std::string> &arguments,
+                                   const std::filesystem::path &stdout_path,
+                                   const std::filesystem::path &stderr_path) {
+  auto result = run_process(arguments, stdout_path, stderr_path);
+  if (result.status == 127) {
+    const auto tool = utf8_to_path(arguments.front()).filename();
+    throw std::runtime_error("required dependency '" + path_to_utf8(tool) +
+                             "' could not be started");
+  }
+  return result;
+}
 
 std::string kind(const TypeRef &type) {
   if (!type)
@@ -557,37 +610,32 @@ WasmExecutionResult execute_wasm(std::string_view wat,
     const std::string wasm_utf8 = path_to_utf8(wasm_path);
     const std::string result_utf8 = path_to_utf8(runner_result);
 
-    const auto assembled = run_process({"wat2wasm", wat_utf8, "-o", wasm_utf8},
-                                       tool_out, tool_err);
-    if (assembled.status == 127)
-      throw std::runtime_error(
-          "required dependency 'wat2wasm' was not found on PATH");
+    const auto node = runtime_tool(IMP_NODE_PATH, "node");
+    const auto wat2wasm = runtime_tool(IMP_WAT2WASM_PATH, "wat2wasm");
+    const auto wasm_validate = runtime_tool(IMP_WASM_VALIDATE_PATH, "wasm-validate");
+
+    const auto assembled = run_required_process(
+        wabt_command(wat2wasm, node, {wat_utf8, "-o", wasm_utf8}), tool_out, tool_err);
     if (assembled.status != 0)
       throw std::runtime_error("wat2wasm failed" +
                                (assembled.stderr_text.empty()
                                     ? std::string{}
                                     : ": " + assembled.stderr_text));
 
-    const auto validated =
-        run_process({"wasm-validate", wasm_utf8}, tool_out, tool_err);
-    if (validated.status == 127)
-      throw std::runtime_error(
-          "required dependency 'wasm-validate' was not found on PATH");
+    const auto validated = run_required_process(
+        wabt_command(wasm_validate, node, {wasm_utf8}), tool_out, tool_err);
     if (validated.status != 0)
       throw std::runtime_error("wasm-validate failed" +
                                (validated.stderr_text.empty()
                                     ? std::string{}
                                     : ": " + validated.stderr_text));
 
-    std::vector<std::string> runner_args{"node",      IMP_WASM_RUNNER_PATH,
+    std::vector<std::string> runner_args{node,        IMP_WASM_RUNNER_PATH,
                                          wasm_utf8,   routine.name,
                                          result_kind, result_utf8};
     runner_args.insert(runner_args.end(), encoded_arguments.begin(),
                        encoded_arguments.end());
-    const auto execution = run_process(runner_args, tool_out, tool_err);
-    if (execution.status == 127)
-      throw std::runtime_error(
-          "required dependency 'node' was not found on PATH");
+    const auto execution = run_required_process(runner_args, tool_out, tool_err);
 
     result.stdout_text = execution.stdout_text;
     result.diagnostic = execution.stderr_text;

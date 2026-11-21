@@ -4,9 +4,6 @@ target_compile_definitions(test_utils PRIVATE IMP_SOURCE_DIR="${PROJECT_SOURCE_D
 
 add_imp_test(TARGET test_pipeline NAME PipelineTest SOURCES test_pipeline.cpp LIBS parser semantics optimizer test_utils)
 
-find_program(WAT2WASM_EXECUTABLE NAMES wat2wasm)
-find_program(WASM_VALIDATE_EXECUTABLE NAMES wasm-validate)
-find_program(NODE_EXECUTABLE NAMES node)
 if(WAT2WASM_EXECUTABLE AND WASM_VALIDATE_EXECUTABLE AND NODE_EXECUTABLE)
     add_imp_test(TARGET test_wasm_execution NAME WasmExecutionTest SOURCES test_wasm_execution.cpp
             LIBS parser semantics optimizer wasm_codegen wasm_execution)

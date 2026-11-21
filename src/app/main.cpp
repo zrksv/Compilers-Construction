@@ -51,7 +51,7 @@ std::unique_ptr<LoadedProgram> load_program(const std::string& filename) {
 }
 
 int invoke_file(const std::string& filename, const std::string& name,
-                const std::vector<std::string>& arguments, bool execute, bool optimize = true) {
+                const std::vector<std::string>& arguments, bool optimize = true) {
     auto loaded = load_program(filename);
     if (!loaded) { return 1; }
 
@@ -60,16 +60,6 @@ int invoke_file(const std::string& filename, const std::string& name,
     if (!routine || !routine->is_defined) {
         std::cerr << "Error: routine '" << name << "' not found in '" << filename << "'.\n";
         return 1;
-    }
-
-    if (!execute) {
-        const auto diagnostic = validate_wasm_arguments(*routine, arguments);
-        if (!diagnostic.empty()) {
-            std::cerr << "Error: " << diagnostic << '\n';
-            return 1;
-        }
-        std::cout << "Arguments valid for routine '" << name << "'.\n";
-        return 0;
     }
 
     try {
@@ -93,8 +83,8 @@ int invoke_file(const std::string& filename, const std::string& name,
 }
 
 int interactive_console() {
-    std::cout << "Argument validation console. Enter <file.imp> [routine_name] [args...], or :quit.\n"
-                 "Quote file paths with spaces; enter parameters without quotes.\n";
+    std::cout << "Enter <file.imp> [routine_name] [args...] to run a program, or :quit.\n"
+                 "Omitting the routine name runs main. Quote file paths with spaces.\n";
     std::string line;
     while (std::cout << "fair> " << std::flush, std::getline(std::cin, line)) {
         std::istringstream command(line);
@@ -121,7 +111,7 @@ int interactive_console() {
         if (!(command >> routine)) { routine = "main"; }
         std::vector<std::string> arguments;
         for (std::string argument; command >> argument;) { arguments.push_back(std::move(argument)); }
-        invoke_file(filename, routine, arguments, false);
+        invoke_file(filename, routine, arguments);
     }
     return 0;
 }
@@ -144,5 +134,5 @@ int main(int argc, char* argv[]) {
     std::vector<std::string> arguments;
     for (int index = first + 2; index < argc; ++index) { arguments.emplace_back(argv[index]); }
     const std::string routine = argc > first + 1 ? argv[first + 1] : "main";
-    return invoke_file(argv[first], routine, arguments, true, optimize);
+    return invoke_file(argv[first], routine, arguments, optimize);
 }
