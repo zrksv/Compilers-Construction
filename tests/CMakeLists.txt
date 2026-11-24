@@ -11,6 +11,13 @@ if(WAT2WASM_EXECUTABLE AND WASM_VALIDATE_EXECUTABLE AND NODE_EXECUTABLE)
             IMP_WASM_SAMPLE="${CMAKE_CURRENT_SOURCE_DIR}/wasm_samples/end_to_end.imp")
     add_test(NAME WasmExecutionNoOptTest COMMAND test_wasm_execution --no-opt)
     set_tests_properties(WasmExecutionTest WasmExecutionNoOptTest PROPERTIES TIMEOUT 60)
+
+    add_imp_test(TARGET test_expression_execution NAME ExpressionExecutionTest SOURCES test_expression_execution.cpp
+            LIBS parser semantics optimizer wasm_codegen wasm_execution)
+    target_compile_definitions(test_expression_execution PRIVATE
+            IMP_EXPRESSION_SAMPLE="${CMAKE_CURRENT_SOURCE_DIR}/wasm_samples/expressions.imp")
+    add_test(NAME ExpressionExecutionNoOptTest COMMAND test_expression_execution --no-opt)
+    set_tests_properties(ExpressionExecutionTest ExpressionExecutionNoOptTest PROPERTIES TIMEOUT 60)
 else()
     message(STATUS "WasmExecution tests unavailable: require wat2wasm, wasm-validate (WABT), and Node.js")
 endif()

@@ -1,0 +1,169 @@
+// Expression-focused fixture: arithmetic, comparisons, logic, conversions,
+// evaluation order, and exact print output.
+
+var order : integer is 0
+
+routine arithmetic() : integer is
+    return 2 + 3 * 4 - 5
+end
+
+routine div_mod() : integer is
+    var a : integer is -7
+    return a / 2 * 10 + a % 2
+end
+
+routine mixed() : real is
+    var i : integer is 1
+    return i + 2.5
+end
+
+routine unary() : integer is
+    var x : integer is 5
+    return -x + +x
+end
+
+routine comparisons() : integer is
+    var count : integer is 0
+    if 1 < 2 then
+        count := count + 1
+    end
+    if 2 <= 2 then
+        count := count + 1
+    end
+    if 3 > 2 then
+        count := count + 1
+    end
+    if 2 >= 2 then
+        count := count + 1
+    end
+    if 2 = 2 then
+        count := count + 1
+    end
+    if 2 /= 3 then
+        count := count + 1
+    end
+    return count
+end
+
+routine real_comparisons() : integer is
+    var count : integer is 0
+    if 1.5 < 2 then
+        count := count + 1
+    end
+    if 2.5 >= 2 then
+        count := count + 1
+    end
+    if 1.0 = 1 then
+        count := count + 1
+    end
+    return count
+end
+
+routine logic() : integer is
+    var count : integer is 0
+    if true and false then
+        count := count + 100
+    end
+    if true or false then
+        count := count + 1
+    end
+    if true xor false then
+        count := count + 10
+    end
+    if not false then
+        count := count + 2
+    end
+    return count
+end
+
+routine round_pos() : integer is
+    var value : integer is 2.5
+    return value
+end
+
+routine round_neg() : integer is
+    var value : integer is -2.5
+    return value
+end
+
+routine round_275() : integer is
+    var value : integer is 2.75
+    return value
+end
+
+routine round_225() : integer is
+    var value : integer is 2.25
+    return value
+end
+
+routine strict_bool(value : integer) : boolean is
+    return value
+end
+
+routine int_to_bool(value : integer) : boolean is
+    var flag : boolean is value
+    return flag
+end
+
+routine bool_to_int() : integer is
+    var flag : boolean is true
+    return flag
+end
+
+routine bool_to_real() : real is
+    var flag : boolean is true
+    return flag
+end
+
+routine mixed_equality() : integer is
+    var count : integer is 0
+    if 1 = true then
+        count := count + 1
+    end
+    if false = 0 then
+        count := count + 1
+    end
+    if 1.0 = true then
+        count := count + 1
+    end
+    return count
+end
+
+routine first() : integer is
+    order := order * 10 + 1
+    return 1
+end
+
+routine second() : integer is
+    order := order * 10 + 2
+    return 2
+end
+
+routine third() : integer is
+    order := order * 10 + 3
+    return 3
+end
+
+routine combine(a : integer, b : integer, c : integer) : integer => a * 100 + b * 10 + c
+
+routine effects() : integer is
+    order := 0
+    var value : integer is first() + second() * third()
+    return order * 1000 + value
+end
+
+routine argument_order() : integer is
+    order := 0
+    var value : integer is combine(first(), second(), third())
+    return order * 1000 + value
+end
+
+routine divide(a : integer, b : integer) : integer => a / b
+
+routine print_format() is
+    print 42, true, 2.5
+end
+
+routine print_negative() is
+    print -7, false, -2.5
+end
