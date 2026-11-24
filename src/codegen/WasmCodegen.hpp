@@ -44,6 +44,10 @@ private:
     void begin_function_state(const RoutineSymbol* routine = nullptr);
     std::string new_label();
     void emit_body(const std::vector<std::unique_ptr<AstNode>>& body);
+    void emit_range_for(ForStatement& node, const std::string& iterator_local,
+                        const std::string& exit_label, const std::string& repeat_label);
+    void emit_array_for(ForStatement& node, const std::string& iterator_local,
+                        const std::string& exit_label, const std::string& repeat_label);
 
     void emit_initialized_value(Expression& expression);
     std::string capture_expr(const Expression& expression, bool convert);

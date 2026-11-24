@@ -3,6 +3,11 @@ project(Compilers_Construction)
 
 set(CMAKE_CXX_STANDARD 20)
 
+set(LOCAL_WABT_BIN "${PROJECT_BINARY_DIR}/wasm-tools/node_modules/wabt/bin")
+find_program(WAT2WASM_EXECUTABLE NAMES wat2wasm PATHS "${LOCAL_WABT_BIN}")
+find_program(WASM_VALIDATE_EXECUTABLE NAMES wasm-validate PATHS "${LOCAL_WABT_BIN}")
+find_program(NODE_EXECUTABLE NAMES node)
+
 enable_testing()
 
 function(add_imp_test)

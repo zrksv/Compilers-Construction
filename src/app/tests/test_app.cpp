@@ -178,18 +178,17 @@ ConsoleResult run_console(const std::string& name, const std::string& input) {
     return {exit_code, captured.str()};
 }
 
-// Each console line uses the full CLI command without the binary path.
-void test_interactive_validation() {
+// Interactive commands execute routines and print their language output.
+void test_interactive_execution() {
     const auto path = work_file("interactive program.imp");
-    std::ofstream(path) << "routine add(a : integer, b : integer) : integer => a + b\n";
+    std::ofstream(path) << "routine add(a : integer, b : integer) is print a + b end\n";
     const auto file = quote(path.string());
     const auto result = run_console("interactive_validation", file + " add 1 2\n"
         + file + " add bad 2\n" + file + " add 3 4\n:quit\n");
     std::filesystem::remove(path);
     assert(result.exit_code == 0);
-    const std::string success = "Arguments valid for routine 'add'.";
-    const auto first = result.output.find(success);
-    assert(first != std::string::npos && result.output.find(success, first + success.size()) != std::string::npos);
+    assert(result.output.find("> 3\n") != std::string::npos);
+    assert(result.output.find("> 7\n") != std::string::npos);
     assert(result.output.find("argument 1") != std::string::npos);
 }
 
@@ -203,42 +202,42 @@ void test_interactive_without_file() {
 void test_interactive_multiple_files() {
     const auto first = work_file("interactive_first.imp");
     const auto second = work_file("interactive_second.imp");
-    std::ofstream(first) << "routine first() is end\n";
-    std::ofstream(second) << "routine second() is end\n";
+    std::ofstream(first) << "routine first() is print 1 end\n";
+    std::ofstream(second) << "routine second() is print 2 end\n";
     const auto result = run_console("interactive_replace", quote(first.string()) + " first\n"
         + "non_existent_console_file.imp\n" + quote(second.string()) + " second\n"
         + quote(first.string()) + " second\n:quit\n");
     std::filesystem::remove(first);
     std::filesystem::remove(second);
     assert(result.exit_code == 0);
-    assert(result.output.find("Arguments valid for routine 'first'.") != std::string::npos);
-    assert(result.output.find("Arguments valid for routine 'second'.") != std::string::npos);
+    assert(result.output.find("> 1\n") != std::string::npos);
+    assert(result.output.find("> 2\n") != std::string::npos);
     assert(result.output.find("routine 'second' not found") != std::string::npos);
 }
 
 // File-only commands select main, and a malformed path does not end the session.
 void test_interactive_default_main() {
     const auto path = work_file("interactive default.imp");
-    std::ofstream(path) << "routine main() is end\nroutine f(value : integer) is end\n";
+    std::ofstream(path) << "routine main() is print 42 end\nroutine f(value : integer) is print value end\n";
     const auto result = run_console("interactive_default", "\n\"unclosed path\n" + quote(path.string())
         + "\n" + quote(path.string()) + " f 7\n:quit\n");
     std::filesystem::remove(path);
     assert(result.exit_code == 0);
     assert(result.output.find("invalid quoted file path") != std::string::npos);
-    assert(result.output.find("Arguments valid for routine 'main'.") != std::string::npos);
-    assert(result.output.find("Arguments valid for routine 'f'.") != std::string::npos);
+    assert(result.output.find("> 42\n") != std::string::npos);
+    assert(result.output.find("> 7\n") != std::string::npos);
 }
 
 // Quotes group the file path only; quoted parameter tokens are invalid in the console.
 void test_interactive_parameter_quotes() {
     const auto path = work_file("interactive parameter quotes.imp");
-    std::ofstream(path) << "routine f(value : integer) is end\n";
+    std::ofstream(path) << "routine f(value : integer) is print value end\n";
     const auto file = quote(path.string());
     const auto result = run_console("interactive_quotes", file + " f \"7\"\n" + file + " f 7\n:quit\n");
     std::filesystem::remove(path);
     assert(result.exit_code == 0);
     assert(result.output.find("argument 1") != std::string::npos);
-    assert(result.output.find("Arguments valid for routine 'f'.") != std::string::npos);
+    assert(result.output.find("> 7\n") != std::string::npos);
 }
 
 void test_file_not_found() {
@@ -290,8 +289,9 @@ int main() {
     std::cout << "Running App CLI Tests...\n";
 
     test_missing_arguments();
-    test_default_main();
     test_missing_default_main();
+#ifdef IMP_APP_RUNTIME_AVAILABLE
+    test_default_main();
     test_main_with_explicit_arguments();
     test_forward_and_definition();
     test_integer_argument_boundaries();
@@ -301,14 +301,23 @@ int main() {
     test_real_argument_parsing();
     test_real_argument_underflow();
     test_real_argument_zero_and_subnormal();
+#endif
     test_aggregate_entry_parameters();
-    test_interactive_validation();
     test_interactive_without_file();
+#ifdef IMP_APP_RUNTIME_AVAILABLE
+    test_interactive_execution();
     test_interactive_multiple_files();
     test_interactive_default_main();
     test_interactive_parameter_quotes();
+#else
+    std::cout << "[SKIP] Interactive execution tests require wat2wasm, wasm-validate, and Node.js\n";
+#endif
     test_file_not_found();
+#ifdef IMP_APP_RUNTIME_AVAILABLE
     test_valid_routine();
+#else
+    std::cout << "[SKIP] App execution test requires wat2wasm, wasm-validate, and Node.js\n";
+#endif
     test_routine_not_found();
     test_wrong_argument_count();
     test_forward_only_routine();
